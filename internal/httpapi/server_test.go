@@ -60,7 +60,7 @@ func TestTickNeedsToken(t *testing.T) {
 
 func TestPagesRender(t *testing.T) {
 	s := newServer(t)
-	for _, p := range []string{"/", "/login", "/nope", "/healthz", "/version", "/static/style.css", "/static/fonts/SpecialElite-Regular.ttf"} {
+	for _, p := range []string{"/", "/login", "/nope", "/healthz", "/health", "/version", "/static/style.css", "/static/fonts/SpecialElite-Regular.ttf"} {
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, httptest.NewRequest("GET", p, nil))
 		if w.Code >= 500 || (p != "/nope" && w.Code != 200) {

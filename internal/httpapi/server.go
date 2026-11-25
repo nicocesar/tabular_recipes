@@ -115,7 +115,12 @@ func (s *Server) routes() {
 	m.Handle("GET /static/fonts/", cached(http.StripPrefix("/static/fonts/", http.FileServerFS(card.Fonts()))))
 	m.Handle("GET /static/", cached(http.StripPrefix("/static/", http.FileServerFS(static))))
 
-	m.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok\n")) })
+	// /healthz is the stack's name (rule 19), but Cloud Run's front end
+	// reserves paths ending in "z" and answers them itself with a 404, so
+	// from outside the check is /health.
+	health := func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok\n")) }
+	m.HandleFunc("GET /healthz", health)
+	m.HandleFunc("GET /health", health)
 	m.HandleFunc("GET /version", s.handleVersion)
 
 	m.HandleFunc("GET /{$}", s.handleHome)

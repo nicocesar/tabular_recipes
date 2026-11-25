@@ -132,6 +132,9 @@ gcloud run services update ${APP} --region=${REGION} --update-env-vars=WORK_URL=
 - `WORK_URL` is the `run.app` URL, not the custom domain: the self-dispatched
   request is held open for the whole Run.
 
+Check it from outside with `curl ${RUN_URL}/health`. (`/healthz` exists too,
+but Cloud Run's front end swallows paths ending in "z" and answers 404.)
+
 ## 8. The Tick
 
 ```sh
