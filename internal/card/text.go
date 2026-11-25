@@ -64,7 +64,7 @@ func words(spans []span, size float64) []word {
 		for _, tok := range strings.Fields(s.text) {
 			ws = append(ws, word{
 				face: s.face, text: tok, class: s.class,
-				w:     s.face.width(tok, size),
+				w: s.face.width(tok, size),
 				// Word gaps always use the serif's space: Courier's is a full
 				// em-half and opens holes after every number.
 				space: faceSerif.width(" ", size),

@@ -1,0 +1,21 @@
+{{/* admin_recipe: one record's Trace and meters (rule 16). Append-only
+     history of every Run: dispatches, session links, rejections with
+     their reasons, failures, resumes. */}}
+{{define "title"}}trace — recipes{{end}}
+{{define "content"}}
+<section class="bench">
+  <p><a href="/admin">← workbench</a> · <a href="/recipes/{{.ID}}">the card</a></p>
+  <h1>{{.Title}}</h1>
+  <p class="quiet">{{.ID}} · <span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .Source}} · <a href="{{.Source}}" rel="noopener noreferrer">{{.Source}}</a>{{end}}{{if .Session}} · session {{.Session}}{{end}}</p>
+  {{if .Fail}}<p class="error">{{.Fail}}</p>{{end}}
+  <h2>Meters</h2>
+  <table class="meters">
+    <tr><th>tokens in</th><th>out</th><th>cache read</th><th>cache write</th><th>fetches</th><th>active s</th><th>list cost</th><th>sessions</th><th>submissions</th><th>rejected (schema/tree/fit)</th><th>resumes</th><th>retries</th><th>views</th></tr>
+    <tr>{{with .M}}<td>{{.InputTokens}}</td><td>{{.OutputTokens}}</td><td>{{.CacheRead}}</td><td>{{.CacheWrite}}</td><td>{{.Fetches}}</td><td>{{printf "%.0f" .ActiveSeconds}}</td><td>{{$.Cost}}</td><td>{{.Sessions}}</td><td>{{.Submissions}}</td><td>{{.RejectSchema}}/{{.RejectTree}}/{{.RejectFit}}</td><td>{{.ResumesTotal}}</td><td>{{.Retries}}</td>{{end}}<td>{{.Views}}</td></tr>
+  </table>
+  <h2>Trace</h2>
+  <ol class="trace">
+  {{range .Trace}}<li><time>{{.At.Format "Jan 2 15:04:05"}}</time> <span class="kind">{{.Kind}}</span> {{.Msg}}</li>{{end}}
+  </ol>
+</section>
+{{end}}

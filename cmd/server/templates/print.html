@@ -1,0 +1,26 @@
+{{/* print: the clean typed card alone on one Letter page (ADR 0004).
+     No layout: no lid, no nav. @page orientation is chosen per recipe by
+     the server; the SVG is sized in points so it lands at the checked
+     scale. On screen it shows a short "print" prompt that never prints. */}}
+{{define "print"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{.Title}} — print</title>
+<style>
+@page { size: letter {{.Orientation}}; margin: 0.4in; }
+html, body { margin: 0; background: #fff; }
+.sheet { display: flex; justify-content: center; }
+.sheet svg { width: {{.WidthPt}}pt; height: {{.HeightPt}}pt; }
+.screen { font: 14px/1.4 Georgia, serif; text-align: center; padding: 12px; color: #3A2E26; }
+@media print { .screen { display: none; } }
+@media screen { .sheet { padding: 16px; } .sheet svg { max-width: 100%; height: auto; box-shadow: 0 1px 6px rgba(0,0,0,.2); } }
+</style>
+</head>
+<body>
+<p class="screen">Prints on one Letter page, {{.Orientation}}{{if .Small}} (a big card: smaller type){{end}}. <a href="#" onclick="window.print();return false">Print</a> · <a href="/recipes/{{.ID}}">Back</a></p>
+<div class="sheet">{{.SVG}}</div>
+</body>
+</html>{{end}}

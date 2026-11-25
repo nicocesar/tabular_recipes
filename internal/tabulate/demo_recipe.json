@@ -1,0 +1,22 @@
+{
+  "title": "Buttermilk Pancakes",
+  "credit": {"source_title": "Fluffy Buttermilk Pancakes", "url": "https://example.com/pancakes"},
+  "servings": "4", "time": "30 min",
+  "ingredients": [
+    {"id": "i1", "qty": "2", "unit": "cups", "item": "all-purpose flour"},
+    {"id": "i2", "qty": "2", "unit": "tbsp", "item": "sugar"},
+    {"id": "i3", "qty": "2", "unit": "tsp", "item": "baking powder"},
+    {"id": "i4", "qty": "½", "unit": "tsp", "item": "salt"},
+    {"id": "i5", "qty": "2", "unit": "cups", "item": "buttermilk"},
+    {"id": "i6", "qty": "2", "item": "eggs"},
+    {"id": "i7", "qty": "3", "unit": "tbsp", "item": "butter", "note": "melted"},
+    {"id": "i8", "qty": "", "item": "butter", "note": "for the pan"}
+  ],
+  "steps": [
+    {"id": "s1", "text": "whisk", "inputs": ["i1","i2","i3","i4"]},
+    {"id": "s2", "text": "beat together", "inputs": ["i5","i6","i7"]},
+    {"id": "s3", "text": "fold just until combined; rest 5 min", "inputs": ["s1","s2"]},
+    {"id": "s4", "text": "ladle ¼ cup onto buttered griddle, medium heat; flip when bubbles form, 2–3 min a side", "inputs": ["s3","i8"]}
+  ],
+  "notes": ["Lumps are fine — overmixing makes them tough."]
+}

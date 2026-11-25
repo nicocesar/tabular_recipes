@@ -1,0 +1,53 @@
+# Push to main deploys (rule 18): build with a registry cache, push to
+# Artifact Registry in us-east4, then swap the image on the service — and
+# nothing else. Env vars, secrets, timeout, billing mode and the runtime
+# service account live on the service (SETUP.md). Never write $(…) here:
+# Cloud Build expands $ first and it only fails at deploy time.
+timeout: 1600s
+options:
+  logging: CLOUD_LOGGING_ONLY
+  # Manual `make deploy` has no SHORT_SHA; let it resolve instead of failing.
+  substitution_option: ALLOW_LOOSE
+  # _IMAGE is built from ${PROJECT_ID}; manual submits need this to expand it.
+  dynamic_substitutions: true
+
+substitutions:
+  # The image follows the repo name; the service follows the site (rule 17).
+  _IMAGE: us-east4-docker.pkg.dev/${PROJECT_ID}/tabular-recipes/tabular-recipes
+  _CACHE_IMAGE: us-east4-docker.pkg.dev/${PROJECT_ID}/tabular-recipes/tabular-recipes:buildcache
+  _BUILT_AT: ""
+  _SERVICE: recipes
+  _REGION: us-east4
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["buildx", "create", "--use", "--name", "cb-bx"]
+  - name: gcr.io/cloud-builders/docker
+    args: ["buildx", "inspect", "--bootstrap"]
+
+  - name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args:
+      - buildx
+      - build
+      - --tag=${_IMAGE}:${SHORT_SHA}
+      - --build-arg=COMMIT=${SHORT_SHA}
+      - --build-arg=BUILT_AT=${_BUILT_AT}
+      - --cache-from=type=registry,ref=${_CACHE_IMAGE}
+      - --cache-to=type=registry,ref=${_CACHE_IMAGE},mode=max
+      - --push
+      - .
+
+  # The image and nothing else. `services update` also leaves the public
+  # invoker binding alone.
+  - name: gcr.io/google.com/cloudsdktool/google-cloud-cli
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --quiet

@@ -1,0 +1,7 @@
+.git
+.gitignore
+data/
+.claude/
+*.env
+.env*
+client_secret*

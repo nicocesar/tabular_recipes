@@ -1,0 +1,14 @@
+{{/* login: the owner's passphrase (ADR 0009). One field; a wrong
+     passphrase says so and nothing more. */}}
+{{define "title"}}owner — recipes{{end}}
+{{define "content"}}
+<section class="slot narrow">
+  <h1>Open the workbench</h1>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="/login" class="newcard">
+    <label for="pw">Owner passphrase</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Open</button>
+  </form>
+</section>
+{{end}}

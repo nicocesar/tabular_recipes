@@ -1,0 +1,45 @@
+{{/* recipe: one Card. Ready → the inline SVG at fit-to-width (pinch to
+     zoom), the plain-text reading of the same tree, print/download links
+     and the optional wake-lock toggle. In flight → the status fragment,
+     polled by htmx every 3 s (rule 8). Failed → the reason; the owner may
+     retry. Works without JS: the status page then offers a reload link. */}}
+{{define "title"}}{{.Title}} — recipes{{end}}
+{{define "content"}}
+{{if .Ready}}
+<article class="cardpage">
+  <div class="cardwrap">{{.SVG}}</div>
+  <div class="tools">
+    <a href="/recipes/{{.ID}}/print">Print (one page)</a>
+    <a href="/recipes/{{.ID}}/card.svg" download="{{.Slug}}.svg">Download card</a>
+    {{if .SourceURL}}<a href="{{.SourceURL}}" rel="noopener noreferrer">Original page</a>{{end}}
+    <button type="button" id="wake" class="link" hidden aria-pressed="false">Keep screen on</button>
+  </div>
+  {{if .MayNotFit}}<p class="quiet">This card is a big one: it may print smaller than usual.</p>{{end}}
+  <details class="astext">
+    <summary>Read it as text</summary>
+    <h2>{{.Title}}</h2>
+    {{if .Credit}}<p class="quiet"><em>{{.Credit}}</em></p>{{end}}
+    {{if .Meta}}<p>{{.Meta}}</p>{{end}}
+    <h3>Ingredients</h3>
+    <ul>{{range .Ingredients}}<li>{{.}}</li>{{end}}</ul>
+    <h3>Steps</h3>
+    <ol>{{range .Steps}}<li>{{.}}</li>{{end}}</ol>
+    {{if .Notes}}<h3>Notes</h3><ul>{{range .Notes}}<li>{{.}}</li>{{end}}</ul>{{end}}
+  </details>
+  {{if .Owner}}{{template "ownertools" .}}{{end}}
+</article>
+{{else}}
+<section class="pending">
+  {{template "status" .Status}}
+  {{if .Owner}}{{template "ownertools" .}}{{end}}
+</section>
+{{end}}
+{{end}}
+{{define "ownertools"}}
+<div class="ownertools">
+  <a href="/admin/recipes/{{.ID}}">Trace</a>
+  {{if .Failed}}<form method="post" action="/recipes/{{.ID}}/retry" class="inline"><button>Retry (a paid run)</button></form>{{end}}
+  <form method="post" action="/recipes/{{.ID}}/delete" class="inline" onsubmit="return confirm('Throw this card away?')"><button class="danger">Delete</button></form>
+</div>
+{{end}}
+{{define "scripts"}}{{if .Ready}}<script src="/static/wakelock.js?v={{assetv}}" defer></script>{{else if .Status.Polling}}<script src="/static/htmx.min.js?v={{assetv}}" defer></script>{{end}}{{end}}

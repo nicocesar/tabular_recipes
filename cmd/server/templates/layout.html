@@ -1,0 +1,30 @@
+{{/* layout: every page except print. The chest's lid (wordmark + nav),
+     one stylesheet, noindex for the PoC (ADR 0012). Pages define title,
+     content and optionally scripts; they never redefine this. */}}
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>{{block "title" .Page}}recipes{{end}}</title>
+<link rel="stylesheet" href="/static/style.css?v={{assetv}}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='3' width='14' height='10' rx='1' fill='%23F2E8D0' stroke='%233A2E26'/%3E%3Cline x1='1' y1='6' x2='15' y2='6' stroke='%23B0473A'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="lid">
+  <a class="wordmark" href="/">recipes</a>
+  <nav>
+    {{if .Nav.Owner}}<a href="/admin">workbench</a>
+    <form method="post" action="/logout" class="inline"><button class="link">lock the chest</button></form>
+    {{else}}<a href="/login" class="quiet">owner</a>{{end}}
+  </nav>
+</header>
+<main>
+{{template "content" .Page}}
+</main>
+<footer class="imprint">From the chest of Grampa the Great Engineer</footer>
+{{block "scripts" .Page}}{{end}}
+</body>
+</html>{{end}}

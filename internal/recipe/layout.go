@@ -5,8 +5,8 @@ package recipe
 // column right of its deepest input; every cell stretches right until
 // the column of the Step that consumes it, so the grid is fully tiled.
 type Cell struct {
-	Ingredient *Ingredient // exactly one of Ingredient / Step is set
-	Step       *Step
+	Ingredient   *Ingredient // exactly one of Ingredient / Step is set
+	Step         *Step
 	Row, RowSpan int
 	Col, ColSpan int
 }

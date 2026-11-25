@@ -1,0 +1,147 @@
+/* Grampa the Great Engineer's recipe chest (ADR 0011).
+   One stylesheet. Card colours are CSS variables the inline SVG reads. */
+
+@font-face { font-family: "Special Elite"; src: url("/static/fonts/SpecialElite-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Source Serif"; src: url("/static/fonts/SourceSerif4SmText-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Source Serif"; font-style: italic; src: url("/static/fonts/SourceSerif4SmText-It.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "Courier Prime"; src: url("/static/fonts/CourierPrime-Regular.ttf") format("truetype"); font-display: swap; }
+
+:root {
+  --card: #F2E8D0; --ink: #3A2E26; --red: #B0473A; --blue: #6F8FB5; --pencil: #8A8278;
+  --step: #E8DABB; --grain: .35; --stain: 1;
+  --lining: #E4D6B8; --shadow: rgba(58, 46, 38, .18); --accent: var(--red);
+  --type: "Special Elite", "Courier New", monospace;
+  --serif: "Source Serif", Georgia, serif;
+  --mono: "Courier Prime", "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  /* The lamp-lit workshop: walnut, card-coloured ink, amber. */
+  :root {
+    --card: #2E251E; --ink: #EADFC6; --red: #D9A441; --blue: #8A7A5E; --pencil: #A89B86;
+    --step: #382D24; --grain: .12; --stain: .25;
+    --lining: #231C17; --shadow: rgba(0, 0, 0, .5); --accent: #D9A441;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  background: var(--lining); color: var(--ink);
+  font: 17px/1.5 var(--serif);
+}
+a { color: var(--blue); text-underline-offset: 2px; }
+@media (prefers-color-scheme: dark) { a { color: var(--accent); } }
+main { flex: 1; width: 100%; max-width: 980px; margin: 0 auto; padding: 0 16px 32px; }
+
+.lid { display: flex; align-items: baseline; justify-content: space-between; max-width: 980px; width: 100%; margin: 0 auto; padding: 18px 16px 10px; }
+.wordmark { font-family: var(--type); font-size: 28px; color: var(--ink); text-decoration: none; letter-spacing: .02em; }
+.wordmark::after { content: ""; display: block; height: 2px; background: var(--red); margin-top: 2px; }
+.lid nav { display: flex; gap: 14px; align-items: baseline; font-size: 15px; }
+.imprint { text-align: center; font-family: var(--type); font-size: 13px; color: var(--red); padding: 16px; opacity: .8; }
+
+h1, h2 { font-family: var(--type); font-weight: normal; letter-spacing: .01em; }
+h1 { font-size: 26px; margin: 0 0 6px; }
+h2 { font-size: 20px; margin: 28px 0 10px; }
+.quiet { color: var(--pencil); }
+.hint { margin-top: 0; }
+.error { color: var(--red); font-weight: 600; }
+.inline { display: inline; margin: 0; }
+
+/* A paper card: the slot, the login, the bench. */
+.slot, .bench, .pending, .astext {
+  background: var(--card); border-radius: 4px; padding: 20px 22px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 6px 18px var(--shadow);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 27px, color-mix(in srgb, var(--blue) 22%, transparent) 27px 28px);
+  background-position: 0 64px;
+}
+.slot h1 { border-bottom: 2px solid var(--red); padding-bottom: 6px; }
+.narrow { max-width: 460px; margin: 24px auto; }
+
+form.newcard { display: grid; gap: 8px; margin-top: 12px; }
+label { font-family: var(--mono); font-size: 14px; }
+input[type=url], input[type=text], input[type=password], textarea {
+  width: 100%; font: 16px/1.4 var(--mono); color: var(--ink);
+  background: color-mix(in srgb, var(--card) 70%, white); border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
+  border-radius: 2px; padding: 10px;
+}
+@media (prefers-color-scheme: dark) { input[type=url], input[type=text], input[type=password], textarea { background: #3a2f26; } }
+input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+details summary { cursor: pointer; color: var(--pencil); margin: 6px 0; }
+button {
+  font: 17px var(--type); color: var(--card); background: var(--ink); border: 0; border-radius: 2px;
+  padding: 10px 18px; cursor: pointer; justify-self: start;
+}
+button.link { background: none; color: var(--blue); padding: 0; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (prefers-color-scheme: dark) { button.link { color: var(--accent); } }
+button.danger { background: var(--red); }
+.caps { margin: 0; font-size: 14px; }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* The chest: card tops peeking out of the box, staggered tabs. */
+.chest h2 { margin-top: 36px; }
+.tabs { list-style: none; padding: 0; margin: 0; }
+.tab { margin: 0 0 -6px; }
+.tab a {
+  position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline;
+  background: var(--card); color: var(--ink); text-decoration: none;
+  padding: 14px 18px 18px; border-radius: 4px 4px 0 0;
+  box-shadow: 0 -1px 0 color-mix(in srgb, var(--ink) 12%, transparent), 0 -4px 10px var(--shadow);
+  border-top: 2px solid var(--red);
+}
+.tab a::before { /* the index tab */
+  content: ""; position: absolute; top: -11px; width: 76px; height: 11px; background: var(--card);
+  border-radius: 4px 4px 0 0; left: 18px; box-shadow: 0 -3px 6px var(--shadow);
+}
+.tab:nth-child(3n+2) a::before { left: calc(50% - 38px); }
+.tab:nth-child(3n) a::before { left: auto; right: 18px; }
+.tab + .tab { margin-top: 14px; }
+.tab a:hover .t, .tab a:focus .t { text-decoration: underline; text-decoration-color: var(--red); }
+.t { font-family: var(--type); font-size: 20px; }
+.from { font-family: var(--serif); font-style: italic; color: var(--pencil); font-size: 14px; grid-column: 1; }
+.badge { font: 12px var(--mono); padding: 1px 6px; border: 1px solid currentColor; border-radius: 2px; color: var(--pencil); }
+.badge-failed { color: var(--red); }
+.badge-ready { color: var(--blue); }
+
+/* The card page: the SVG at fit-to-width; pinch to zoom. */
+.cardpage { margin-top: 8px; }
+.cardwrap svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 14px var(--shadow)); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 14px 2px; font-size: 15px; }
+.tools button[aria-pressed=true] { color: var(--red); text-decoration: none; }
+.tools button[aria-pressed=true]::before { content: "● "; }
+.astext { margin-top: 18px; background-image: none; }
+.astext h2 { margin-top: 10px; }
+.ownertools { display: flex; gap: 14px; align-items: center; margin-top: 18px; font-size: 15px; }
+.ownertools button { font-size: 14px; padding: 6px 12px; }
+
+/* A Run in flight. */
+.pending { max-width: 620px; margin: 24px auto; }
+.typing { font-family: var(--type); font-size: 22px; margin: 0 0 8px; }
+.dots span { animation: blink 1.4s infinite both; }
+.dots span:nth-child(2) { animation-delay: .2s; }
+.dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .15; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dots span { animation: none; } }
+.failed { font-family: var(--type); font-size: 22px; color: var(--red); margin: 0 0 8px; }
+
+/* The workbench. */
+.gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.gauge { border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); padding: 10px 12px; display: grid; }
+.gauge .k { font: 13px var(--mono); color: var(--pencil); }
+.gauge .v { font: 22px var(--type); }
+.gauge .w { font-size: 13px; color: var(--pencil); }
+.gauge.warn { border-color: var(--red); }
+.gauge.warn .w { color: var(--red); font-weight: 600; }
+table.meters, table.records { border-collapse: collapse; width: 100%; font: 14px var(--mono); display: block; overflow-x: auto; }
+table th, table td { border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); padding: 4px 8px; text-align: left; white-space: nowrap; }
+table th { font-weight: normal; color: var(--pencil); }
+.trace { font: 14px/1.45 var(--mono); padding-left: 22px; }
+.trace time { color: var(--pencil); }
+.trace .kind { color: var(--red); }
+
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  main { padding: 0 10px 24px; }
+  .slot, .bench, .pending { padding: 16px; }
+  .t { font-size: 18px; }
+}

@@ -214,7 +214,7 @@ func build(r *recipe.Recipe, opt Options) *sheet {
 		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: cw, lines: wrap([]span{{faceMono, strings.Join(meta, " · "), "ink"}}, metaSize, cw), size: metaSize, lead: metaSize * 1.3})
 		y += 3
 	}
-	if credit := creditLine(r, opt.Pasted); credit != "" {
+	if credit := CreditLine(r, opt.Pasted); credit != "" {
 		cl := wrap(prose(credit, faceItalic, "pencil"), noteSize, cw)
 		y += noteSize + 1
 		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: cw, lines: cl, size: noteSize, lead: noteLead})
@@ -281,8 +281,8 @@ func glueComma(ss []span) []span {
 	return ss
 }
 
-// creditLine is "Adapted from “X” — domain · by Author" (ADR 0012).
-func creditLine(r *recipe.Recipe, pasted bool) string {
+// CreditLine is "Adapted from “X” — domain · by Author" (ADR 0012).
+func CreditLine(r *recipe.Recipe, pasted bool) string {
 	c := r.Credit
 	var parts []string
 	src := strings.TrimSpace(c.SourceTitle)

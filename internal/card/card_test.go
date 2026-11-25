@@ -49,7 +49,8 @@ func TestPrintHasNoStains(t *testing.T) {
 
 func TestStainsAreStable(t *testing.T) {
 	r := load(t, "pancakes.json")
-	if string(SVG(r, Options{ID: "same"})) != string(SVG(r, Options{ID: "same"})) {
+	a, b := SVG(r, Options{ID: "same"}), SVG(r, Options{ID: "same"})
+	if string(a) != string(b) {
 		t.Fatal("same id, different card")
 	}
 }
