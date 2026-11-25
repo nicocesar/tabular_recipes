@@ -31,7 +31,8 @@ func stains(sh *sheet) string {
 	seed := h.Sum64()
 	rng := rand.New(rand.NewPCG(seed, seed>>17|1))
 
-	n := 1 + rng.IntN(2)
+	// Two marks on every card, a third once it is well used (ADR 0011).
+	n := 2
 	if sh.opt.Views >= WellUsedViews {
 		n++
 	}
@@ -70,23 +71,23 @@ func stains(sh *sheet) string {
 
 	kinds := []func(cx, cy, r float64){
 		func(cx, cy, r float64) { // coffee ring, often doubled
-			fmt.Fprintf(&b, `<g filter="url(#wobble)" fill="none" stroke="#6b3f1d"><circle cx="%s" cy="%s" r="%s" stroke-width="3.4" stroke-opacity=".12"/><circle cx="%s" cy="%s" r="%s" stroke-width=".9" stroke-opacity=".12"/>`,
+			fmt.Fprintf(&b, `<g filter="url(#wobble)" fill="none" stroke="#6b3f1d"><circle cx="%s" cy="%s" r="%s" stroke-width="3.6" stroke-opacity=".26"/><circle cx="%s" cy="%s" r="%s" stroke-width="1" stroke-opacity=".3"/>`,
 				trim(cx), trim(cy), trim(r), trim(cx), trim(cy), trim(r-2.2))
 			if rng.IntN(2) == 0 {
 				a := rng.Float64() * 2 * math.Pi
 				ox, oy := cx+math.Cos(a)*r*0.35, cy+math.Sin(a)*r*0.35
-				fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" stroke-width="2" stroke-opacity=".06" stroke-dasharray="%s %s"/>`,
+				fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" stroke-width="2.4" stroke-opacity=".16" stroke-dasharray="%s %s"/>`,
 					trim(ox), trim(oy), trim(r*0.95), trim(r*2.2), trim(r*1.4))
 			}
 			b.WriteString(`</g>`)
 		},
 		func(cx, cy, r float64) { // grease halo
-			fmt.Fprintf(&b, `<g filter="url(#wobble)"><ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="#b07f2e" fill-opacity=".07"/><ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="none" stroke="#9a6a22" stroke-opacity=".08" stroke-width="1.2"/></g>`,
+			fmt.Fprintf(&b, `<g filter="url(#wobble)"><ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="#b07f2e" fill-opacity=".16"/><ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="none" stroke="#8a5a18" stroke-opacity=".24" stroke-width="1.4"/></g>`,
 				trim(cx), trim(cy), trim(r*0.8), trim(r*0.62), trim(cx), trim(cy), trim(r*0.8), trim(r*0.62))
 		},
 		func(cx, cy, r float64) { // flour fingerprint
 			rot := rng.Float64()*60 - 30
-			fmt.Fprintf(&b, `<g transform="rotate(%s %s %s)" fill="none" stroke="#fffdf6" stroke-opacity=".55" stroke-width=".7">`, trim(rot), trim(cx), trim(cy))
+			fmt.Fprintf(&b, `<g transform="rotate(%s %s %s)" fill="none" stroke="#fffdf6" stroke-opacity=".85" stroke-width="1">`, trim(rot), trim(cx), trim(cy))
 			for k := 1; k <= 5; k++ {
 				fr := float64(k) * r / 6
 				fmt.Fprintf(&b, `<ellipse cx="%s" cy="%s" rx="%s" ry="%s"/>`, trim(cx), trim(cy), trim(fr*0.72), trim(fr))
@@ -94,11 +95,11 @@ func stains(sh *sheet) string {
 			b.WriteString(`</g>`)
 		},
 		func(cx, cy, r float64) { // tomato splash
-			fmt.Fprintf(&b, `<g filter="url(#wobble)" fill="#b0473a"><circle cx="%s" cy="%s" r="%s" fill-opacity=".09"/>`, trim(cx), trim(cy), trim(r*0.55))
+			fmt.Fprintf(&b, `<g filter="url(#wobble)" fill="#b0473a"><circle cx="%s" cy="%s" r="%s" fill-opacity=".2"/>`, trim(cx), trim(cy), trim(r*0.55))
 			for k := 0; k < 4; k++ {
 				a := rng.Float64() * 2 * math.Pi
 				d := r * (0.7 + rng.Float64()*0.3)
-				fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" fill-opacity=".1"/>`, trim(cx+math.Cos(a)*d), trim(cy+math.Sin(a)*d), trim(0.8+rng.Float64()*1.6))
+				fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s" fill-opacity=".24"/>`, trim(cx+math.Cos(a)*d), trim(cy+math.Sin(a)*d), trim(0.8+rng.Float64()*1.6))
 			}
 			b.WriteString(`</g>`)
 		},
@@ -110,17 +111,22 @@ func stains(sh *sheet) string {
 			// A pencil tick in the left margin, beside the table.
 			x := m/2 - 4
 			y := sh.table.y + rng.Float64()*math.Max(sh.table.h-12, 1)
-			fmt.Fprintf(&b, `<path d="M%s %sl3.5 4.5 6-9" fill="none" stroke="#6e675e" stroke-opacity=".5" stroke-width=".9" stroke-linecap="round"/>`, trim(x), trim(y+5))
+			fmt.Fprintf(&b, `<path d="M%s %sl3.5 4.5 6-9" fill="none" stroke="#5e574e" stroke-opacity=".7" stroke-width="1.1" stroke-linecap="round"/>`, trim(x), trim(y+5))
 			continue
 		}
-		draw := kinds[rng.IntN(len(kinds))]
-		for try := 0; try < 40; try++ {
-			r := 12 + rng.Float64()*20
+		// Coffee rings are the classic, so they come up most often.
+		draw := kinds[0]
+		if k := rng.IntN(len(kinds) + 2); k < len(kinds) {
+			draw = kinds[k]
+		}
+		for try := 0; try < 80; try++ {
+			// Later tries shrink, so a crowded card still gets its marks.
+			r := (18 + rng.Float64()*18) * (1 - float64(try)/110)
 			var cx, cy float64
 			switch rng.IntN(5) {
 			case 0: // a corner, half off the card
 				cx, cy = pick(rng, 0, sh.W), pick(rng, 0, sh.H)
-				cx, cy = snap(cx, sh.W), snap(cy, sh.H)
+				cx, cy = snap(cx, sh.W, r), snap(cy, sh.H, r)
 			case 1: // beside the title
 				cx = sh.titleR.x + sh.titleR.w - r - rng.Float64()*40
 				cy = sh.titleR.y + rng.Float64()*sh.titleR.h
@@ -147,10 +153,11 @@ func stains(sh *sheet) string {
 
 func pick(rng *rand.Rand, lo, hi float64) float64 { return lo + rng.Float64()*(hi-lo) }
 
-// snap pulls a coordinate to the nearer edge.
-func snap(v, max float64) float64 {
+// snap pulls a coordinate to the nearer edge, leaving most of a mark
+// of radius r on the card.
+func snap(v, max, r float64) float64 {
 	if v < max/2 {
-		return 6
+		return r * 0.55
 	}
-	return max - 6
+	return max - r*0.55
 }

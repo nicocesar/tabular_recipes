@@ -26,8 +26,8 @@ engineer's precision.
 - **Palette:** card `#F2E8D0`, ink `#3A2E26`, index red `#B0473A`, blueprint
   blue `#6F8FB5`, pencil `#8A8278`. Dark mode ("lamp-lit workshop"): walnut
   `#231C17`, card-coloured ink, amber `#D9A441`.
-- **Stains:** one to three faint marks (coffee ring, grease halo, flour
-  fingerprints, tomato splash, pencil tick) at 6–12% opacity, seeded from the
+- **Stains:** two marks (three on a well-used card) (coffee ring, grease halo, flour
+  fingerprints, tomato splash, pencil tick) at roughly 15–30% opacity (first set at 6–12%, which proved invisible on the card stock), seeded from the
   recipe id so a card keeps its history, placed only in margins and never over
   text, aria-hidden, dropped in print, near-invisible in dark mode. A card
   viewed often earns one more, up to the cap (a view counter on the record,

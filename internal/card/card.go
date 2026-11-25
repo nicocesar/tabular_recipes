@@ -108,7 +108,7 @@ func build(r *recipe.Recipe, opt Options) *sheet {
 }
 
 func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
-	sh := &sheet{opt: opt, title: r.Title, margin: 40}
+	sh := &sheet{opt: opt, title: r.Title, margin: 52}
 	if opt.Print {
 		sh.margin = 10
 	}
