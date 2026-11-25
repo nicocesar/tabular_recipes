@@ -22,8 +22,8 @@ const (
 	LeaseSlack    = 2 * time.Minute
 	MaxFitTries   = 3 // fit-only rejections before accepting (ADR 0004)
 	MaxResumes    = 3
-	DailyRuns     = 25 // global cap, ADR 0008
-	DailyPerIP    = 5
+	DailyRuns     = 100 // global cap, ADR 0008
+	DailyPerIP    = 25
 	StaleDispatch = 2 * time.Minute
 )
 
