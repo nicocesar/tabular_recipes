@@ -20,6 +20,10 @@ type Recipe struct {
 	Ingredients []Ingredient `json:"ingredients"`
 	Steps       []Step       `json:"steps"`
 	Notes       []string     `json:"notes,omitempty"`
+	// Lang is the language the text is in (ISO 639-1, "es"): the source's,
+	// or an Overlay's once translated (ADR 0015). The Card's fixed labels
+	// follow it (ADR 0016). Empty means English.
+	Lang string `json:"lang,omitempty"`
 }
 
 // Credit says where the Recipe came from (ADR 0012).

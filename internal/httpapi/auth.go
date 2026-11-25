@@ -108,20 +108,20 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin", http.StatusSeeOther)
 		return
 	}
-	s.render(w, r, s.tmplLogin, http.StatusOK, loginView{})
+	s.render(w, r, "login", http.StatusOK, loginView{})
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	pw := r.FormValue("password")
 	if s.cfg.OwnerPassword == "" || s.cfg.SessionSecret == "" {
-		s.render(w, r, s.tmplLogin, http.StatusServiceUnavailable, loginView{Error: "The owner login isn't configured on this server."})
+		s.render(w, r, "login", http.StatusServiceUnavailable, loginView{Error: s.t(r, "login.unconfigured")})
 		return
 	}
 	// Compare digests so the comparison is constant-time regardless of length.
 	a, b := sha256.Sum256([]byte(pw)), sha256.Sum256([]byte(s.cfg.OwnerPassword))
 	if subtle.ConstantTimeCompare(a[:], b[:]) != 1 {
 		time.Sleep(400 * time.Millisecond)
-		s.render(w, r, s.tmplLogin, http.StatusUnauthorized, loginView{Error: "That's not the passphrase."})
+		s.render(w, r, "login", http.StatusUnauthorized, loginView{Error: s.t(r, "login.wrong")})
 		return
 	}
 	exp := strconv.FormatInt(time.Now().Add(sessionLife).Unix(), 10)

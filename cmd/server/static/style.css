@@ -39,6 +39,10 @@ main { flex: 1; width: 100%; max-width: 980px; margin: 0 auto; padding: 0 16px 3
 .wordmark::after { content: ""; display: block; height: 2px; background: var(--red); margin-top: 2px; }
 .lid nav { display: flex; gap: 14px; align-items: baseline; font-size: 15px; }
 .imprint { text-align: center; font-family: var(--type); font-size: 13px; color: var(--red); padding: 16px; opacity: .8; }
+.imprint p { margin: 0 0 6px; }
+.langs { display: flex; justify-content: center; gap: 12px; font: 13px var(--serif); color: var(--pencil); }
+.langs button.link { font-size: 13px; }
+.langs [aria-current] { color: var(--ink); }
 
 h1, h2 { font-family: var(--type); font-weight: normal; letter-spacing: .01em; }
 h1 { font-size: 26px; margin: 0 0 6px; }

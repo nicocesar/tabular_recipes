@@ -2,7 +2,7 @@
      one stylesheet, noindex for the PoC (ADR 0012). Pages define title,
      content and optionally scripts; they never redefine this. */}}
 {{define "layout"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,15 +16,21 @@
 <header class="lid">
   <a class="wordmark" href="/">recipes</a>
   <nav>
-    {{if .Nav.Owner}}<a href="/admin">workbench</a>
-    <form method="post" action="/logout" class="inline"><button class="link">lock the chest</button></form>
-    {{else}}<a href="/login" class="quiet">owner</a>{{end}}
+    {{if .Nav.Owner}}<a href="/admin">{{t "nav.workbench"}}</a>
+    <form method="post" action="/logout" class="inline"><button class="link">{{t "nav.lock"}}</button></form>
+    {{else}}<a href="/login" class="quiet">{{t "nav.owner"}}</a>{{end}}
   </nav>
 </header>
 <main>
 {{template "content" .Page}}
 </main>
-<footer class="imprint">From the chest of Grampa the Great Engineer</footer>
+<footer class="imprint">
+  <p>{{t "imprint"}}</p>
+  <form method="post" action="/lang" class="langs" aria-label="{{t "lang.switch"}}">
+    <input type="hidden" name="back" value="{{.Nav.Here}}">
+    {{range .Nav.Langs}}{{if .Current}}<span aria-current="true">{{.Name}}</span>{{else}}<button class="link" name="to" value="{{.Code}}" lang="{{.Code}}">{{.Name}}</button>{{end}}{{end}}
+  </form>
+</footer>
 {{block "scripts" .Page}}{{end}}
 </body>
 </html>{{end}}

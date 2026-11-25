@@ -8,7 +8,7 @@
 
   function set(on) {
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.textContent = on ? "Screen stays on" : "Keep screen on";
+    btn.textContent = on ? btn.dataset.on : btn.dataset.off;
   }
   async function acquire() {
     try {

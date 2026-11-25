@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/nicocesar/tabular_recipes/internal/i18n"
 	"github.com/nicocesar/tabular_recipes/internal/recipe"
 )
 
@@ -236,7 +237,7 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 
 	var meta []string
 	if s := strings.TrimSpace(r.Servings); s != "" {
-		meta = append(meta, "Serves "+s)
+		meta = append(meta, i18n.T(r.Lang, "card.serves", s))
 	}
 	if s := strings.TrimSpace(r.Time); s != "" {
 		meta = append(meta, s)
@@ -287,7 +288,7 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 
 	// Imprint.
 	y += 16
-	stamp := wrap([]span{{faceTitle, "From the chest of Grampa the Great Engineer", "red"}}, stampSize, cw)
+	stamp := wrap([]span{{faceTitle, i18n.T(r.Lang, "card.stamp"), "red"}}, stampSize, cw)
 	sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: cw, lines: stamp, size: stampSize, lead: stampSize, center: true})
 	y += 4
 
@@ -313,7 +314,8 @@ func glueComma(ss []span) []span {
 	return ss
 }
 
-// CreditLine is "Adapted from “X” — domain · by Author" (ADR 0012).
+// CreditLine is "Adapted from “X” — domain · by Author" (ADR 0012), in
+// the card's language.
 func CreditLine(r *recipe.Recipe, pasted bool) string {
 	c := r.Credit
 	var parts []string
@@ -321,17 +323,17 @@ func CreditLine(r *recipe.Recipe, pasted bool) string {
 	dom := Domain(c.URL)
 	switch {
 	case src != "" && dom != "":
-		parts = append(parts, fmt.Sprintf("Adapted from “%s” — %s", src, dom))
+		parts = append(parts, i18n.T(r.Lang, "card.adapted_full", src, dom))
 	case dom != "":
-		parts = append(parts, "Adapted from "+dom)
+		parts = append(parts, i18n.T(r.Lang, "card.adapted", dom))
 	case src != "":
-		parts = append(parts, fmt.Sprintf("Adapted from “%s”", src))
+		parts = append(parts, i18n.T(r.Lang, "card.adapted_title", src))
 	}
 	if a := strings.TrimSpace(c.Author); a != "" {
-		parts = append(parts, "by "+a)
+		parts = append(parts, i18n.T(r.Lang, "card.by", a))
 	}
 	if pasted && dom == "" {
-		parts = append(parts, "pasted by a visitor")
+		parts = append(parts, i18n.T(r.Lang, "card.pasted"))
 	}
 	return strings.Join(parts, " · ")
 }

@@ -9,13 +9,14 @@
     // submit time would drop out of the form data.
     setTimeout(function () {
       btn.disabled = true;
-      btn.textContent = "Grampa is typing…";
+      btn.dataset.idle = btn.textContent;
+      btn.textContent = btn.dataset.busy || btn.textContent;
     }, 0);
   });
   // Back/forward cache restores the disabled button; re-enable it.
   window.addEventListener("pageshow", function () {
     var btn = form.querySelector("button[type=submit]");
     btn.disabled = false;
-    btn.textContent = "Type it up";
+    if (btn.dataset.idle) btn.textContent = btn.dataset.idle;
   });
 })();

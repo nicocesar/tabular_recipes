@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/nicocesar/tabular_recipes/internal/card"
+	"github.com/nicocesar/tabular_recipes/internal/i18n"
 	"github.com/nicocesar/tabular_recipes/internal/store"
 	"github.com/nicocesar/tabular_recipes/internal/tabulate"
 )
@@ -39,44 +40,47 @@ type Config struct {
 }
 
 type Server struct {
-	cfg                                                                       Config
-	mux                                                                       *http.ServeMux
-	assetv                                                                    string
-	tmplHome, tmplRecipe, tmplLogin, tmplAdmin, tmplAdminRecipe, tmplNotFound *template.Template
-	tmplPrint, tmplFragments                                                  *template.Template
+	cfg    Config
+	mux    *http.ServeMux
+	assetv string
+	// pages[lang][name] is each page parsed with that language's "t"
+	// bound (ADR 0016): names are the template files without ".html",
+	// plus "print" and "fragments".
+	pages map[string]map[string]*template.Template
 }
 
-// New parses every template up front: a broken template fails boot,
-// never a request (web-layout.md).
+var pageNames = []string{"home", "recipe", "login", "admin", "admin_recipe", "notfound"}
+
+// New parses every template up front, once per language: a broken
+// template fails boot, never a request (web-layout.md).
 func New(cfg Config) (*Server, error) {
-	s := &Server{cfg: cfg, mux: http.NewServeMux()}
+	s := &Server{cfg: cfg, mux: http.NewServeMux(), pages: map[string]map[string]*template.Template{}}
 	v, err := assetVersion(cfg.Assets)
 	if err != nil {
 		return nil, err
 	}
 	s.assetv = v
-	funcs := template.FuncMap{"assetv": func() string { return s.assetv }}
-	page := func(name string) (*template.Template, error) {
-		return template.New("").Funcs(funcs).ParseFS(cfg.Assets, "templates/layout.html", "templates/"+name, "templates/fragments/*.html")
-	}
-	for _, p := range []struct {
-		dst  **template.Template
-		file string
-	}{
-		{&s.tmplHome, "home.html"}, {&s.tmplRecipe, "recipe.html"}, {&s.tmplLogin, "login.html"},
-		{&s.tmplAdmin, "admin.html"}, {&s.tmplAdminRecipe, "admin_recipe.html"}, {&s.tmplNotFound, "notfound.html"},
-	} {
-		t, err := page(p.file)
-		if err != nil {
+	for _, lang := range i18n.Langs() {
+		funcs := template.FuncMap{
+			"assetv": func() string { return s.assetv },
+			"t":      func(key string, args ...any) string { return i18n.T(lang, key, args...) },
+			"lang":   func() string { return lang },
+		}
+		set := map[string]*template.Template{}
+		for _, name := range pageNames {
+			t, err := template.New("").Funcs(funcs).ParseFS(cfg.Assets, "templates/layout.html", "templates/"+name+".html", "templates/fragments/*.html")
+			if err != nil {
+				return nil, err
+			}
+			set[name] = t
+		}
+		if set["print"], err = template.New("").Funcs(funcs).ParseFS(cfg.Assets, "templates/print.html"); err != nil {
 			return nil, err
 		}
-		*p.dst = t
-	}
-	if s.tmplPrint, err = template.New("").Funcs(funcs).ParseFS(cfg.Assets, "templates/print.html"); err != nil {
-		return nil, err
-	}
-	if s.tmplFragments, err = template.New("").Funcs(funcs).ParseFS(cfg.Assets, "templates/fragments/*.html"); err != nil {
-		return nil, err
+		if set["fragments"], err = template.New("").Funcs(funcs).ParseFS(cfg.Assets, "templates/fragments/*.html"); err != nil {
+			return nil, err
+		}
+		s.pages[lang] = set
 	}
 	s.routes()
 	return s, nil
@@ -132,6 +136,8 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /recipes/{id}/retry", s.owner(s.handleRetry))
 	m.HandleFunc("POST /recipes/{id}/delete", s.owner(s.handleDelete))
 
+	m.HandleFunc("POST /lang", s.handleLang)
+
 	m.HandleFunc("GET /login", s.handleLoginPage)
 	m.HandleFunc("POST /login", s.handleLogin)
 	m.HandleFunc("POST /logout", s.handleLogout)
@@ -150,13 +156,29 @@ type pageView struct {
 	Page any
 }
 
-type navView struct{ Owner bool }
+type navView struct {
+	Owner bool
+	Lang  string
+	Here  string // the path the language switch returns to
+	Langs []langOption
+}
 
-func (s *Server) render(w http.ResponseWriter, r *http.Request, t *template.Template, status int, data any) {
+type langOption struct {
+	Code, Name string
+	Current    bool
+}
+
+// render draws page name in the visitor's language.
+func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, status int, data any) {
+	lang := s.lang(r)
+	nav := navView{Owner: s.isOwner(r), Lang: lang, Here: r.URL.RequestURI()}
+	for _, l := range i18n.Langs() {
+		nav.Langs = append(nav.Langs, langOption{l, i18n.Name(l), l == lang})
+	}
 	var buf bytes.Buffer
-	if err := t.ExecuteTemplate(&buf, "layout", pageView{Nav: navView{Owner: s.isOwner(r)}, Page: data}); err != nil {
+	if err := s.pages[lang][name].ExecuteTemplate(&buf, "layout", pageView{Nav: nav, Page: data}); err != nil {
 		log.Printf("render: %v", err)
-		http.Error(w, "something went wrong drawing this page", http.StatusInternalServerError)
+		http.Error(w, i18n.T(lang, "err.render"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -165,7 +187,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, t *template.Temp
 }
 
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, s.tmplNotFound, http.StatusNotFound, nil)
+	s.render(w, r, "notfound", http.StatusNotFound, nil)
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
@@ -180,8 +202,8 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 // ---- The chest ----
 
 type cardRow struct {
-	ID, Title, Domain, Date, Badge string
-	at                             time.Time
+	ID, Title, Domain, Date, Badge, BadgeText string
+	at                                        time.Time
 }
 
 type homeView struct {
@@ -208,14 +230,14 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v home
 			continue
 		}
 		for _, rec := range recs {
-			row := cardRow{ID: rec.ID, Domain: card.Domain(rec.SourceURL), at: rec.CreatedAt, Date: rec.CreatedAt.Format("Jan 2, 2006")}
+			row := cardRow{ID: rec.ID, Domain: card.Domain(rec.SourceURL), at: rec.CreatedAt, Date: i18n.Date(s.lang(r), rec.CreatedAt)}
 			if rec.Recipe != nil {
 				row.Title = rec.Recipe.Title
 			} else {
 				row.Title = firstNonEmpty(rec.SourceURL, rec.PastedSource, "pasted recipe")
 			}
 			if st != store.Ready {
-				row.Badge = string(st)
+				row.Badge, row.BadgeText = string(st), s.t(r, "badge."+string(st))
 			}
 			v.Cards = append(v.Cards, row)
 		}
@@ -224,7 +246,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v home
 	used, _ := s.cfg.Store.Count(ctx, tabulate.RunsKey(time.Now()))
 	v.Cap = tabulate.DailyRuns
 	v.Left = max(v.Cap-used, 0)
-	s.render(w, r, s.tmplHome, status, v)
+	s.render(w, r, "home", status, v)
 }
 
 func firstNonEmpty(ss ...string) string {

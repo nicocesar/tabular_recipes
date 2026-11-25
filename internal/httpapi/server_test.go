@@ -127,3 +127,50 @@ func TestCreateDedupesPastes(t *testing.T) {
 		t.Fatalf("runs counted %d, want 2", n)
 	}
 }
+
+// The page language comes from ?lang=, else the cookie, else
+// Accept-Language (ADR 0016); the switch sets the cookie.
+func TestPageLanguage(t *testing.T) {
+	s := newServer(t)
+	get := func(path string, hdr map[string]string) string {
+		req := httptest.NewRequest("GET", path, nil)
+		for k, v := range hdr {
+			req.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		return w.Body.String()
+	}
+	if b := get("/", nil); !strings.Contains(b, "File a new recipe") || !strings.Contains(b, `lang="en"`) {
+		t.Error("default should be English")
+	}
+	if b := get("/", map[string]string{"Accept-Language": "es-AR,es;q=0.9"}); !strings.Contains(b, "Archivar una receta nueva") || !strings.Contains(b, `lang="es"`) {
+		t.Error("Accept-Language es should give Spanish")
+	}
+	if b := get("/?lang=en", map[string]string{"Accept-Language": "es", "Cookie": "lang=es"}); !strings.Contains(b, "File a new recipe") {
+		t.Error("?lang= should win")
+	}
+	if b := get("/", map[string]string{"Accept-Language": "en", "Cookie": "lang=es"}); !strings.Contains(b, "Archivar") {
+		t.Error("cookie should beat Accept-Language")
+	}
+
+	req := httptest.NewRequest("POST", "/lang", strings.NewReader(url.Values{"to": {"es"}, "back": {"/recipes/x?lang=en"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "http://example.com")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/recipes/x" {
+		t.Fatalf("switch: %d %q", w.Code, w.Header().Get("Location"))
+	}
+	if c := w.Result().Cookies(); len(c) != 1 || c[0].Value != "es" {
+		t.Fatalf("switch cookie: %v", c)
+	}
+	req = httptest.NewRequest("POST", "/lang", strings.NewReader(url.Values{"to": {"es"}, "back": {"//evil.example"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "http://example.com")
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if w.Header().Get("Location") != "/" {
+		t.Fatalf("open redirect: %q", w.Header().Get("Location"))
+	}
+}

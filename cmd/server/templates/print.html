@@ -3,12 +3,12 @@
      the server; the SVG is sized in points so it lands at the checked
      scale. On screen it shows a short "print" prompt that never prints. */}}
 {{define "print"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>{{.Title}} — print</title>
+<title>{{t "print.title" .Title}}</title>
 <style>
 @page { size: letter {{.Orientation}}; margin: 0.4in; }
 html, body { margin: 0; background: #fff; }
@@ -20,7 +20,7 @@ html, body { margin: 0; background: #fff; }
 </style>
 </head>
 <body>
-<p class="screen">Prints on one Letter page, {{.Orientation}}{{if .Small}} (a big card: smaller type){{end}}. <a href="#" onclick="window.print();return false">Print</a> · <a href="/recipes/{{.ID}}">Back</a></p>
+<p class="screen">{{t "print.prompt" (t (printf "print.%s" .Orientation))}}{{if .Small}} {{t "print.small"}}{{end}} <a href="#" onclick="window.print();return false">{{t "print.print"}}</a> · <a href="/recipes/{{.ID}}">{{t "print.back"}}</a></p>
 <div class="sheet">{{.SVG}}</div>
 </body>
 </html>{{end}}

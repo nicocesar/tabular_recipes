@@ -1,38 +1,38 @@
 {{/* home: the Chest. The "file a new recipe" slot (plain form → POST →
      303, works without JS) and every Ready card, newest first. Owners also
      see in-flight and failed records, badged. */}}
-{{define "title"}}recipes — Grampa's chest{{end}}
+{{define "title"}}{{t "home.title"}}{{end}}
 {{define "content"}}
 <section class="slot">
-  <h1>File a new recipe</h1>
-  <p class="hint">Give me a recipe page and I'll type it up as one of Grampa's cards: ingredients down the left, every step a box that spans what it combines.</p>
+  <h1>{{t "home.file_h"}}</h1>
+  <p class="hint">{{t "home.hint"}}</p>
   {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
   <form method="post" action="/recipes" class="newcard">
-    <label for="url">Recipe URL</label>
+    <label for="url">{{t "home.url_label"}}</label>
     <input id="url" name="url" type="url" inputmode="url" placeholder="https://…" value="{{.URL}}" autocomplete="off">
     <details {{if .Pasted}}open{{end}}>
-      <summary>…or paste the recipe (if the site won't let me in)</summary>
-      <label for="pasted">Recipe text</label>
+      <summary>{{t "home.paste_summary"}}</summary>
+      <label for="pasted">{{t "home.paste_label"}}</label>
       <textarea id="pasted" name="pasted" rows="8" maxlength="30000">{{.Pasted}}</textarea>
-      <label for="source">Where is it from? <span class="quiet">(optional)</span></label>
+      <label for="source">{{t "home.source_label"}} <span class="quiet">{{t "home.optional"}}</span></label>
       <input id="source" name="source" type="text" maxlength="300" value="{{.Source}}">
     </details>
-    <div class="hp" aria-hidden="true"><label>Leave this empty <input name="website" tabindex="-1" autocomplete="off"></label></div>
-    <button type="submit">Type it up</button>
-    <p class="quiet caps">{{.Left}} of {{.Cap}} cards left to file today.</p>
+    <div class="hp" aria-hidden="true"><label>{{t "home.honeypot"}} <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit" data-busy="{{t "home.busy"}}">{{t "home.submit"}}</button>
+    <p class="quiet caps">{{t "home.left" .Left .Cap}}</p>
   </form>
 </section>
 
-<section class="chest" aria-label="The chest">
-  <h2>In the chest</h2>
-  {{if not .Cards}}<p class="quiet">The chest is empty. File the first card above.</p>{{end}}
+<section class="chest" aria-label="{{t "home.chest_h"}}">
+  <h2>{{t "home.chest_h"}}</h2>
+  {{if not .Cards}}<p class="quiet">{{t "home.empty"}}</p>{{end}}
   <ol class="tabs">
   {{range .Cards}}
     <li class="tab">
       <a href="/recipes/{{.ID}}">
         <span class="t">{{.Title}}</span>
-        <span class="from">{{if .Domain}}from {{.Domain}}{{else}}pasted{{end}} · {{.Date}}</span>
-        {{if .Badge}}<span class="badge badge-{{.Badge}}">{{.Badge}}</span>{{end}}
+        <span class="from">{{if .Domain}}{{t "home.from" .Domain .Date}}{{else}}{{t "home.pasted" .Date}}{{end}}</span>
+        {{if .Badge}}<span class="badge badge-{{.Badge}}">{{.BadgeText}}</span>{{end}}
       </a>
     </li>
   {{end}}

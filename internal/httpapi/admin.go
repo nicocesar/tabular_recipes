@@ -90,7 +90,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	v.CostAll = dollars(cost)
 	v.Counts = fmt.Sprintf("%d ready · %d in flight · %d failed", counts[store.Ready], counts[store.Dispatched]+counts[store.Running], counts[store.Failed])
-	s.render(w, r, s.tmplAdmin, http.StatusOK, v)
+	s.render(w, r, "admin", http.StatusOK, v)
 }
 
 type adminRecipeView struct {
@@ -116,7 +116,7 @@ func (s *Server) handleAdminRecipe(w http.ResponseWriter, r *http.Request) {
 	if rec.Status == store.Failed {
 		v.Fail = rec.FailKind + ": " + rec.FailReason
 	}
-	s.render(w, r, s.tmplAdminRecipe, http.StatusOK, v)
+	s.render(w, r, "admin_recipe", http.StatusOK, v)
 }
 
 // handleWork is the Run itself, held open for its whole duration (rule 7,

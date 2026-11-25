@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/nicocesar/tabular_recipes/internal/card"
+	"github.com/nicocesar/tabular_recipes/internal/i18n"
 	"github.com/nicocesar/tabular_recipes/internal/recipe"
 	"github.com/nicocesar/tabular_recipes/internal/store"
 	"github.com/nicocesar/tabular_recipes/internal/tabulate"
@@ -64,7 +65,7 @@ func validURL(raw string) bool {
 func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
 	if err := r.ParseForm(); err != nil {
-		s.home(w, r, http.StatusBadRequest, homeView{Error: "That form was too large."})
+		s.home(w, r, http.StatusBadRequest, homeView{Error: s.t(r, "err.too_large")})
 		return
 	}
 	if r.PostFormValue("website") != "" { // honeypot: only bots fill it
@@ -77,17 +78,17 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		Source: strings.TrimSpace(r.PostFormValue("source")),
 	}
 	if v.URL == "" && v.Pasted == "" {
-		v.Error = "Give me a recipe URL, or paste the recipe."
+		v.Error = s.t(r, "err.no_input")
 		s.home(w, r, http.StatusBadRequest, v)
 		return
 	}
 	if v.URL != "" && !validURL(v.URL) {
-		v.Error = "That doesn't look like a web address (it should start with https://)."
+		v.Error = s.t(r, "err.bad_url")
 		s.home(w, r, http.StatusBadRequest, v)
 		return
 	}
 	if len(v.Pasted) > maxPasted {
-		v.Error = fmt.Sprintf("That's more than %d characters; paste just the recipe.", maxPasted)
+		v.Error = s.t(r, "err.too_long", maxPasted)
 		s.home(w, r, http.StatusBadRequest, v)
 		return
 	}
@@ -109,7 +110,7 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	// resubmitted form lands on the card already being typed (ADR 0008).
 	existing, err := s.cfg.Store.CreateUnique(ctx, DedupeKey(norm, v.Pasted), rec, func(e *store.Record) bool { return e.Status != store.Failed })
 	if err != nil {
-		v.Error = "Couldn't file that card just now. Try again in a minute."
+		v.Error = s.t(r, "err.not_filed")
 		s.home(w, r, http.StatusServiceUnavailable, v)
 		return
 	}
@@ -130,15 +131,15 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		if _, ok, err := s.cfg.Store.Incr(ctx, tabulate.IPKey(now, ipHash), tabulate.DailyPerIP); err != nil {
 			log.Printf("create: ip cap: %v", err)
 		} else if !ok {
-			refuse(http.StatusTooManyRequests, fmt.Sprintf("You've filed %d cards today — that's the limit per visitor. Come back tomorrow!", tabulate.DailyPerIP))
+			refuse(http.StatusTooManyRequests, s.t(r, "err.ip_cap", tabulate.DailyPerIP))
 			return
 		}
 	}
 	if _, ok, err := s.cfg.Store.Incr(ctx, tabulate.RunsKey(now), tabulate.DailyRuns); err != nil {
-		refuse(http.StatusServiceUnavailable, "Couldn't reach the chest just now. Try again in a minute.")
+		refuse(http.StatusServiceUnavailable, s.t(r, "err.unreachable"))
 		return
 	} else if !ok {
-		refuse(http.StatusTooManyRequests, "Grampa has typed up all the cards he can for today. Come back tomorrow!")
+		refuse(http.StatusTooManyRequests, s.t(r, "err.day_cap"))
 		return
 	}
 	s.cfg.Runner.Start(ctx, rec.ID)
@@ -150,20 +151,21 @@ type statusView struct {
 	Polling               bool
 }
 
-func statusOf(rec *store.Record) statusView {
+func statusOf(rec *store.Record, lang string) statusView {
+	t := func(k string) string { return i18n.T(lang, k) }
 	v := statusView{ID: rec.ID, State: string(rec.Status)}
 	switch rec.Status {
 	case store.Dispatched, store.Running:
 		v.Polling = true
-		v.Line = "Reading the page…"
+		v.Line = t("status.reading")
 		for i := len(rec.Trace) - 1; i >= 0; i-- {
 			switch rec.Trace[i].Kind {
 			case "rejected":
-				v.Line = "Re-typing a few lines so it fits on one card…"
+				v.Line = t("status.refit")
 			case "nudge":
-				v.Line = "Nearly there…"
+				v.Line = t("status.nearly")
 			case "tick":
-				v.Line = "Picking up where we left off…"
+				v.Line = t("status.resume")
 			default:
 				continue
 			}
@@ -173,13 +175,13 @@ func statusOf(rec *store.Record) statusView {
 		v.Line = rec.FailReason
 		switch rec.FailKind {
 		case "fetch_blocked":
-			v.Hint = "The site wouldn't let me read it. Copy the recipe from the page and paste it into the form instead."
+			v.Hint = t("hint.fetch_blocked")
 		case "not_a_recipe":
-			v.Hint = "That page doesn't seem to hold a recipe."
+			v.Hint = t("hint.not_a_recipe")
 		case "ambiguous":
-			v.Hint = "If the page has several recipes, paste just the one you want."
+			v.Hint = t("hint.ambiguous")
 		default:
-			v.Hint = "Something went wrong on our side."
+			v.Hint = t("hint.other")
 		}
 	}
 	return v
@@ -198,7 +200,7 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 	if rec == nil {
 		return
 	}
-	v := recipeView{ID: rec.ID, Owner: s.isOwner(r), Failed: rec.Status == store.Failed, Status: statusOf(rec), Title: "A card in progress"}
+	v := recipeView{ID: rec.ID, Owner: s.isOwner(r), Failed: rec.Status == store.Failed, Status: statusOf(rec, s.lang(r)), Title: s.t(r, "recipe.pending_title")}
 	if rec.Status == store.Ready && rec.Recipe != nil {
 		// A real visit wears the card a little (ADR 0011).
 		ctx, cancel := bg()
@@ -213,7 +215,7 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 		v.Credit = card.CreditLine(rc, rec.WasPasted)
 		var meta []string
 		if rc.Servings != "" {
-			meta = append(meta, "Serves "+rc.Servings)
+			meta = append(meta, i18n.T(rc.Lang, "card.serves", rc.Servings))
 		}
 		if rc.Time != "" {
 			meta = append(meta, rc.Time)
@@ -227,9 +229,9 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 		}
 		v.Notes = rc.Notes
 	} else if rec.Status == store.Failed {
-		v.Title = "Couldn't make this card"
+		v.Title = s.t(r, "recipe.failed_title")
 	}
-	s.render(w, r, s.tmplRecipe, http.StatusOK, v)
+	s.render(w, r, "recipe", http.StatusOK, v)
 }
 
 // handleStatus is the htmx poll: the status fragment, or HX-Refresh once
@@ -250,7 +252,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	if err := s.tmplFragments.ExecuteTemplate(w, "status", statusOf(rec)); err != nil {
+	if err := s.pages[s.lang(r)]["fragments"].ExecuteTemplate(w, "status", statusOf(rec, s.lang(r))); err != nil {
 		log.Printf("status fragment: %v", err)
 	}
 }
@@ -317,9 +319,9 @@ func (s *Server) handlePrint(w http.ResponseWriter, r *http.Request) {
 		v.Orientation = "landscape"
 	}
 	var buf strings.Builder
-	if err := s.tmplPrint.ExecuteTemplate(&buf, "print", v); err != nil {
+	if err := s.pages[s.lang(r)]["print"].ExecuteTemplate(&buf, "print", v); err != nil {
 		log.Printf("print: %v", err)
-		http.Error(w, "something went wrong drawing this page", http.StatusInternalServerError)
+		http.Error(w, s.t(r, "err.render"), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
