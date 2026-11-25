@@ -242,3 +242,90 @@ func (s *Datastore) PutMeta(ctx context.Context, key string, v any) error {
 	_, err = s.c.Put(ctx, datastore.NameKey("Meta", key, nil), &metaEntity{Body: string(b)})
 	return err
 }
+
+type dishEntity struct {
+	Body string `datastore:",noindex"`
+}
+
+func dkey(id string) *datastore.Key { return datastore.NameKey("Dish", id, nil) }
+
+func (s *Datastore) GetDish(ctx context.Context, id string) (*Dish, error) {
+	var e dishEntity
+	if err := s.c.Get(ctx, dkey(id), &e); err != nil {
+		if errors.Is(err, datastore.ErrNoSuchEntity) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	var d Dish
+	return &d, json.Unmarshal([]byte(e.Body), &d)
+}
+
+func (s *Datastore) Dishes(ctx context.Context) ([]*Dish, error) {
+	var es []dishEntity
+	if _, err := s.c.GetAll(ctx, datastore.NewQuery("Dish"), &es); err != nil {
+		return nil, err
+	}
+	out := make([]*Dish, 0, len(es))
+	for _, e := range es {
+		var d Dish
+		if err := json.Unmarshal([]byte(e.Body), &d); err == nil {
+			out = append(out, &d)
+		}
+	}
+	return out, nil
+}
+
+func (s *Datastore) CreateDish(ctx context.Context, d *Dish) error {
+	d.UpdatedAt = time.Now().UTC()
+	b, err := json.Marshal(d)
+	if err != nil {
+		return err
+	}
+	_, err = s.c.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		var cur dishEntity
+		if err := tx.Get(dkey(d.ID), &cur); err == nil {
+			return fmt.Errorf("store: dish %s exists", d.ID)
+		} else if !errors.Is(err, datastore.ErrNoSuchEntity) {
+			return err
+		}
+		_, err := tx.Put(dkey(d.ID), &dishEntity{Body: string(b)})
+		return err
+	})
+	return err
+}
+
+func (s *Datastore) UpdateDish(ctx context.Context, id string, fn func(*Dish) error) (*Dish, error) {
+	var out *Dish
+	_, err := s.c.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		var e dishEntity
+		if err := tx.Get(dkey(id), &e); err != nil {
+			if errors.Is(err, datastore.ErrNoSuchEntity) {
+				return ErrNotFound
+			}
+			return err
+		}
+		var d Dish
+		if err := json.Unmarshal([]byte(e.Body), &d); err != nil {
+			return err
+		}
+		if err := fn(&d); err != nil {
+			return err
+		}
+		d.UpdatedAt = time.Now().UTC()
+		b, err := json.Marshal(&d)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Put(dkey(id), &dishEntity{Body: string(b)}); err != nil {
+			return err
+		}
+		out = &d
+		return nil
+	})
+	return out, err
+}
+
+func (s *Datastore) DeleteDish(ctx context.Context, id string) error {
+	return s.c.Delete(ctx, dkey(id))
+}

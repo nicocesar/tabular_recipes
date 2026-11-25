@@ -24,6 +24,9 @@ type Recipe struct {
 	// or an Overlay's once translated (ADR 0015). The Card's fixed labels
 	// follow it (ADR 0016). Empty means English.
 	Lang string `json:"lang,omitempty"`
+	// Label tells this Variant apart within its Dish ("with coconut milk
+	// & spinach"), in Lang (ADR 0017).
+	Label string `json:"label,omitempty"`
 }
 
 // Credit says where the Recipe came from (ADR 0012).
@@ -40,6 +43,10 @@ type Ingredient struct {
 	Unit string `json:"unit,omitempty"`
 	Item string `json:"item"`
 	Note string `json:"note,omitempty"`
+	// Canon is the matching key across Variants (ADR 0017): English,
+	// lowercase, singular ("chicken"), whatever the source language.
+	// Never shown. Empty on cards filed before dishes existed.
+	Canon string `json:"canon,omitempty"`
 }
 
 // Step is a node: a short verb phrase and the ids it consumes.
@@ -239,4 +246,90 @@ func (in Ingredient) Line() string {
 		s += ", " + n
 	}
 	return s
+}
+
+// MaxLabelLen bounds a Label: a few words.
+const MaxLabelLen = 60
+
+// ValidateGrouping checks the fields a new Submission carries for its
+// Dish (ADR 0017): the language, a Label, and a canonical name on every
+// Ingredient. Cards filed before dishes lack them, so Validate does not.
+func ValidateGrouping(r *Recipe) []Problem {
+	var ps []Problem
+	add := func(f string, a ...any) { ps = append(ps, Problem{"schema", fmt.Sprintf(f, a...)}) }
+	if !isLang(r.Lang) {
+		add("lang must be the source's two-letter ISO 639-1 code, e.g. \"es\" or \"en\" (got %q)", r.Lang)
+	}
+	if l := strings.TrimSpace(r.Label); l == "" {
+		add("label is empty: give a few words that tell this version apart, e.g. \"with coconut milk\"")
+	} else if len([]rune(l)) > MaxLabelLen {
+		add("label is longer than %d characters; a few words", MaxLabelLen)
+	}
+	var missing, bad []string
+	for _, in := range r.Ingredients {
+		switch c := in.Canon; {
+		case strings.TrimSpace(c) == "":
+			missing = append(missing, in.ID)
+		case c != strings.ToLower(c) || !isASCII(c):
+			bad = append(bad, in.ID)
+		}
+	}
+	if len(missing) > 0 {
+		add("ingredients %s have no canon (the English, lowercase, singular name, e.g. \"chicken\")", strings.Join(missing, ", "))
+	}
+	if len(bad) > 0 {
+		add("canon must be plain English in lowercase ASCII (\"bell pepper\", not \"Pimiento\"); fix %s", strings.Join(bad, ", "))
+	}
+	return ps
+}
+
+func isLang(s string) bool {
+	return len(s) == 2 && s[0] >= 'a' && s[0] <= 'z' && s[1] >= 'a' && s[1] <= 'z'
+}
+
+func isASCII(s string) bool {
+	for _, c := range s {
+		if c > 127 {
+			return false
+		}
+	}
+	return true
+}
+
+// TreeChanges lists what differs between two Recipes in everything a
+// backfill must leave alone (ADR 0017): title, servings, time, notes, and
+// every Ingredient and Step except the new grouping fields. Empty when
+// they are the same card.
+func TreeChanges(was, now *Recipe) []string {
+	var out []string
+	if was.Title != now.Title {
+		out = append(out, fmt.Sprintf("title changed from %q", was.Title))
+	}
+	if was.Servings != now.Servings || was.Time != now.Time {
+		out = append(out, "servings or time changed")
+	}
+	if strings.Join(was.Notes, "\n") != strings.Join(now.Notes, "\n") {
+		out = append(out, "notes changed")
+	}
+	if len(was.Ingredients) != len(now.Ingredients) {
+		out = append(out, fmt.Sprintf("there were %d ingredients, now %d", len(was.Ingredients), len(now.Ingredients)))
+	} else {
+		for i, a := range was.Ingredients {
+			b := now.Ingredients[i]
+			if a.ID != b.ID || a.Qty != b.Qty || a.Unit != b.Unit || a.Item != b.Item || a.Note != b.Note {
+				out = append(out, fmt.Sprintf("ingredient %s changed (only add canon)", a.ID))
+			}
+		}
+	}
+	if len(was.Steps) != len(now.Steps) {
+		out = append(out, fmt.Sprintf("there were %d steps, now %d", len(was.Steps), len(now.Steps)))
+	} else {
+		for i, a := range was.Steps {
+			b := now.Steps[i]
+			if a.ID != b.ID || a.Text != b.Text || strings.Join(a.Inputs, ",") != strings.Join(b.Inputs, ",") {
+				out = append(out, fmt.Sprintf("step %s changed", a.ID))
+			}
+		}
+	}
+	return out
 }

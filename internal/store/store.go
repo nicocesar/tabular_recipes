@@ -24,6 +24,17 @@ const (
 	Running    Status = "running"
 	Ready      Status = "ready"
 	Failed     Status = "failed"
+	// Folded: a copy of an existing Variant, hidden; FoldedInto names it
+	// (ADR 0018).
+	Folded Status = "folded"
+)
+
+// Kinds of record. A card is the default; the others are jobs that run
+// on the same Run path for a Parent card (ADRs 0014, 0017).
+const (
+	KindCard      = ""
+	KindBackfill  = "backfill"
+	KindTranslate = "translate"
 )
 
 // MaxTrace bounds the Trace so a record stays far under Datastore's
@@ -48,6 +59,20 @@ type Record struct {
 	Recipe    *recipe.Recipe `json:"recipe,omitempty"`
 	MayNotFit bool           `json:"may_not_fit,omitempty"`
 
+	// Kind is "" for a card; a job names its card in Parent.
+	Kind   string `json:"kind,omitempty"`
+	Parent string `json:"parent,omitempty"`
+
+	// The Dish (ADR 0017). Variant is this card's number in it.
+	DishID  string `json:"dish_id,omitempty"`
+	Variant int    `json:"variant,omitempty"`
+	// FoldedInto is the Variant this copy was folded into; AlsoAt is a
+	// Variant's list of folded copies' sources (ADR 0018).
+	FoldedInto string   `json:"folded_into,omitempty"`
+	AlsoAt     []Source `json:"also_at,omitempty"`
+	// BackfillTried marks a card the backfill chain has already visited.
+	BackfillTried bool `json:"backfill_tried,omitempty"`
+
 	// The Run.
 	SessionID     string    `json:"session_id,omitempty"`
 	LeaseUntil    time.Time `json:"lease_until,omitempty"`
@@ -64,6 +89,75 @@ type Record struct {
 	// reading adds only the difference to Meters.
 	SessionSeen Usage       `json:"session_seen"`
 	Trace       []TraceStep `json:"trace,omitempty"`
+}
+
+// Source is where a folded copy came from.
+type Source struct {
+	URL    string `json:"url,omitempty"` // empty for pasted text
+	Record string `json:"record"`
+}
+
+// Dish groups Variants (ADR 0017). It has no language of its own.
+type Dish struct {
+	ID        string            `json:"id"`
+	Names     map[string]string `json:"names"` // lang → name
+	Variants  []DishVariant     `json:"variants"`
+	Reference string            `json:"reference"` // a record id
+	Next      int               `json:"next"`      // the next variant number
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+}
+
+// DishVariant is one card in a Dish, in filing order.
+type DishVariant struct {
+	Record string `json:"record"`
+	N      int    `json:"n"`
+}
+
+// Name is the Dish's name in lang, else in the Reference's language,
+// else any; and the language it is in.
+func (d *Dish) Name(lang, refLang string) (string, string) {
+	for _, l := range []string{lang, refLang, "en"} {
+		if n := d.Names[l]; n != "" {
+			return n, l
+		}
+	}
+	for l, n := range d.Names {
+		return n, l
+	}
+	return "", ""
+}
+
+// Add files a record as the next Variant; the first becomes Reference.
+func (d *Dish) Add(record string) int {
+	if d.Next == 0 {
+		d.Next = 1
+	}
+	n := d.Next
+	d.Next++
+	d.Variants = append(d.Variants, DishVariant{record, n})
+	if d.Reference == "" {
+		d.Reference = record
+	}
+	return n
+}
+
+// Remove takes a record out; a removed Reference passes to the oldest
+// remaining Variant. Numbers are never reused.
+func (d *Dish) Remove(record string) {
+	out := d.Variants[:0]
+	for _, v := range d.Variants {
+		if v.Record != record {
+			out = append(out, v)
+		}
+	}
+	d.Variants = out
+	if d.Reference == record {
+		d.Reference = ""
+		if len(out) > 0 {
+			d.Reference = out[0].Record
+		}
+	}
 }
 
 // Usage is what a session reports, cumulatively.
@@ -145,6 +239,12 @@ type Store interface {
 	// stores the result. If fn returns an error nothing is written.
 	Update(ctx context.Context, id string, fn func(*Record) error) (*Record, error)
 	Delete(ctx context.Context, id string) error
+	// Dishes (ADR 0017). UpdateDish runs fn inside a transaction.
+	GetDish(ctx context.Context, id string) (*Dish, error)
+	Dishes(ctx context.Context) ([]*Dish, error)
+	CreateDish(ctx context.Context, d *Dish) error
+	UpdateDish(ctx context.Context, id string, fn func(*Dish) error) (*Dish, error)
+	DeleteDish(ctx context.Context, id string) error
 	// CreateUnique stores r unless the dedupe key already names a record
 	// that live accepts; then it returns that record and stores nothing.
 	// Claim and record are written together, so of two simultaneous

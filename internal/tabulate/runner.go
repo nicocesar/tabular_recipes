@@ -129,6 +129,7 @@ func (rn *Runner) Run(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	defer rn.afterRun(id)
 	ctx, cancel := context.WithTimeout(ctx, RunCeiling)
 	defer cancel()
 
@@ -151,7 +152,11 @@ func (rn *Runner) Run(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		if err := rn.API.SendMessage(ctx, sid, firstMessage(rec)); err != nil {
+		first, err := rn.firstMessage(ctx, rec)
+		if err != nil {
+			return rn.fail(id, "config", err.Error())
+		}
+		if err := rn.API.SendMessage(ctx, sid, first); err != nil {
 			return rn.fail(id, "vendor", "could not send the first message: "+err.Error())
 		}
 		rec.SessionID = sid
@@ -166,7 +171,14 @@ func (rn *Runner) consoleSuffix(sid string) string {
 	return " — https://platform.claude.com/workspaces/" + rn.ConsoleWorkspace + "/sessions/" + sid
 }
 
-func firstMessage(r *store.Record) string {
+func (rn *Runner) firstMessage(ctx context.Context, r *store.Record) (string, error) {
+	if r.Kind == store.KindBackfill {
+		return rn.backfillMessage(ctx, r)
+	}
+	return sourceMessage(r) + "\n\n" + rn.dishList(ctx), nil
+}
+
+func sourceMessage(r *store.Record) string {
 	if strings.TrimSpace(r.Pasted) != "" {
 		src := strings.TrimSpace(r.PastedSource)
 		if src == "" {
@@ -294,63 +306,110 @@ func (rn *Runner) react(ctx context.Context, id, sid string, evs []Event) (bool,
 	return true, rn.fail(id, "no_submission", "the agent ended without submitting or reporting a failure")
 }
 
-// submit validates one Submission and answers it.
+// submit validates one Submission and answers it. A card's Submission
+// is a new Recipe; a backfill's must be its card unchanged plus the
+// grouping fields (ADR 0017).
 func (rn *Runner) submit(ctx context.Context, id, sid string, e Event) (bool, error) {
 	rec, err := rn.Store.Get(ctx, id)
 	if err != nil {
 		return true, err
 	}
-	var rcp recipe.Recipe
-	dec := json.NewDecoder(bytes.NewReader(e.Input))
-	if err := dec.Decode(&rcp); err != nil {
-		rn.reject(ctx, id, "schema", "the input is not valid recipe JSON: "+err.Error())
-		return false, rn.API.SendToolResult(ctx, sid, e.ID, "Rejected: the input is not valid recipe JSON ("+err.Error()+"). Fix it and call submit_recipe again.", true)
-	}
-	if rcp.Credit.URL == "" && rec.SourceURL != "" {
-		rcp.Credit.URL = rec.SourceURL
-	}
-	if ps := recipe.Validate(&rcp); len(ps) > 0 {
-		kind := ps[0].Kind
-		var lines []string
-		for _, p := range ps {
-			lines = append(lines, "- "+p.Message)
-		}
-		msg := strings.Join(lines, "\n")
+	rejectWith := func(kind, msg string) (bool, error) {
 		rn.reject(ctx, id, kind, msg)
 		return false, rn.API.SendToolResult(ctx, sid, e.ID, "Rejected. Fix these and call submit_recipe again:\n"+msg, true)
 	}
-	fit := card.Fit(&rcp)
-	mayNotFit := false
-	if !fit.OK {
-		if rec.FitRejections < MaxFitTries {
-			rn.reject(ctx, id, "fit", fit.Message)
-			return false, rn.API.SendToolResult(ctx, sid, e.ID, "Rejected: "+fit.Message+" Then call submit_recipe again.", true)
-		}
-		mayNotFit = true
+	var sub submission
+	if err := json.NewDecoder(bytes.NewReader(e.Input)).Decode(&sub); err != nil {
+		return rejectWith("schema", "- the input is not valid recipe JSON: "+err.Error())
 	}
-	_, err = rn.Store.Update(ctx, id, func(r *store.Record) error {
-		r.Meters.Submissions++
-		r.Recipe = &rcp
-		r.MayNotFit = mayNotFit
-		r.Status = store.Ready
-		r.Pasted = "" // only the rewrite is kept (ADR 0012)
-		r.LeaseUntil = time.Time{}
-		r.FailKind, r.FailReason = "", ""
-		if mayNotFit {
-			r.Log("accepted", fmt.Sprintf("accepted after %d fit rejections; may not fit one page (%.1f pt)", MaxFitTries, fit.CellPt))
+	rcp := sub.Recipe
+	cardID := id
+	if rec.Kind == store.KindBackfill {
+		parent, err := rn.Store.Get(ctx, rec.Parent)
+		if err != nil || parent.Recipe == nil {
+			return true, rn.fail(id, "config", "the card to backfill is gone")
+		}
+		if ch := recipe.TreeChanges(parent.Recipe, &rcp); len(ch) > 0 {
+			return rejectWith("tree", "- this card must not change; resubmit it exactly as given, adding only lang, label, dish and canon. Changed: "+strings.Join(ch, "; "))
+		}
+		rcp.Credit = parent.Recipe.Credit
+		cardID = parent.ID
+	} else {
+		if rcp.Credit.URL == "" && rec.SourceURL != "" {
+			rcp.Credit.URL = rec.SourceURL
+		}
+		if ps := recipe.Validate(&rcp); len(ps) > 0 {
+			return rejectWith(ps[0].Kind, problems(ps))
+		}
+	}
+	ps := recipe.ValidateGrouping(&rcp)
+	if msg := rn.checkPick(ctx, sub.Dish); msg != "" {
+		ps = append(ps, recipe.Problem{Kind: "schema", Message: msg})
+	}
+	if len(ps) > 0 {
+		return rejectWith("schema", problems(ps))
+	}
+
+	mayNotFit := rec.MayNotFit
+	var fitLine string
+	if rec.Kind == store.KindCard {
+		fit := card.Fit(&rcp)
+		mayNotFit = false
+		if !fit.OK {
+			if rec.FitRejections < MaxFitTries {
+				rn.reject(ctx, id, "fit", fit.Message)
+				return false, rn.API.SendToolResult(ctx, sid, e.ID, "Rejected: "+fit.Message+" Then call submit_recipe again.", true)
+			}
+			mayNotFit = true
+			fitLine = fmt.Sprintf("accepted after %d fit rejections; may not fit one page (%.1f pt)", MaxFitTries, fit.CellPt)
 		} else {
-			r.Log("accepted", fmt.Sprintf("accepted; prints %s at %.1f pt", orientation(fit), fit.CellPt))
+			fitLine = fmt.Sprintf("accepted; prints %s at %.1f pt", orientation(fit), fit.CellPt)
+		}
+	}
+
+	// The card takes the Recipe; a backfill job only records that it did.
+	if _, err = rn.Store.Update(ctx, cardID, func(r *store.Record) error {
+		r.Recipe = &rcp
+		if r.Kind == store.KindCard && rec.Kind == store.KindCard {
+			r.Meters.Submissions++
+			r.MayNotFit = mayNotFit
+			r.Status = store.Ready
+			r.Pasted = "" // only the rewrite is kept (ADR 0012)
+			r.LeaseUntil = time.Time{}
+			r.FailKind, r.FailReason = "", ""
+			r.Log("accepted", fitLine)
+		} else {
+			r.Log("backfill", "lang, label and canonical names added by "+id)
 		}
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		return true, err
+	}
+	filed, ferr := rn.file(ctx, cardID, sub.Dish, rcp.Lang)
+	if ferr != nil {
+		filed = "could not file into a dish: " + ferr.Error()
+	}
+	if rec.Kind != store.KindCard {
+		rn.Store.Update(ctx, id, func(r *store.Record) error {
+			r.Meters.Submissions++
+			r.Status, r.LeaseUntil = store.Ready, time.Time{}
+			r.Log("accepted", "card "+cardID+": "+filed)
+			return nil
+		})
 	}
 	rn.API.SendToolResult(ctx, sid, e.ID, "Accepted and saved. You are done.", false)
 	if info, err := rn.API.Session(ctx, sid); err == nil {
 		rn.meter(ctx, id, info.Usage)
 	}
 	return true, nil
+}
+
+func problems(ps []recipe.Problem) string {
+	var lines []string
+	for _, p := range ps {
+		lines = append(lines, "- "+p.Message)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func orientation(f card.FitResult) string {

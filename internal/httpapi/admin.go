@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"sort"
 	"time"
 
@@ -19,12 +20,13 @@ import (
 const tickStale = 35 * time.Minute
 
 type adminRow struct {
-	ID, Date, Status, Title, Cost, Subs string
+	ID, Date, Status, Title, Cost, Subs, Kind, Dish string
 }
 
 type adminView struct {
 	LastTick, TickWarn, CostAll, CostNote, Counts string
-	RunsToday, Cap                                int
+	RunsToday, Cap, Undished                      int
+	BackfillMsg                                   string
 	Total                                         store.Meters
 	Rows                                          []adminRow
 }
@@ -52,7 +54,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 
 	var all []*store.Record
 	counts := map[store.Status]int{}
-	for _, st := range []store.Status{store.Ready, store.Dispatched, store.Running, store.Failed} {
+	for _, st := range []store.Status{store.Ready, store.Dispatched, store.Running, store.Failed, store.Folded} {
 		recs, err := s.cfg.Store.ByStatus(ctx, st)
 		if err != nil {
 			log.Printf("admin: %v", err)
@@ -82,14 +84,28 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		if rec.Recipe != nil {
 			title = rec.Recipe.Title
 		}
+		if rec.Kind != store.KindCard {
+			title = rec.Kind + " of " + rec.Parent
+		} else if rec.Status == store.Ready && rec.DishID == "" {
+			v.Undished++
+		}
+		dish := ""
+		switch {
+		case rec.Status == store.Folded:
+			dish = "copy of " + rec.FoldedInto
+		case rec.Variant > 0:
+			dish = fmt.Sprintf("variant %d", rec.Variant)
+		}
 		v.Rows = append(v.Rows, adminRow{
+			Kind: rec.Kind, Dish: dish,
 			ID: rec.ID, Date: rec.CreatedAt.Format("Jan 2 15:04"), Status: string(rec.Status), Title: title,
 			Cost: dollars(m.ListCostCents),
 			Subs: fmt.Sprintf("%d/%d", m.Submissions, m.RejectSchema+m.RejectTree+m.RejectFit),
 		})
 	}
 	v.CostAll = dollars(cost)
-	v.Counts = fmt.Sprintf("%d ready · %d in flight · %d failed", counts[store.Ready], counts[store.Dispatched]+counts[store.Running], counts[store.Failed])
+	v.Counts = fmt.Sprintf("%d ready · %d in flight · %d failed · %d folded", counts[store.Ready], counts[store.Dispatched]+counts[store.Running], counts[store.Failed], counts[store.Folded])
+	v.BackfillMsg = r.URL.Query().Get("backfill")
 	s.render(w, r, "admin", http.StatusOK, v)
 }
 
@@ -148,4 +164,20 @@ func (s *Server) handleTick(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(res)
+}
+
+// handleBackfill is the Owner's button (ADR 0017): give every card
+// without a Dish a backfill Run, one at a time.
+func (s *Server) handleBackfill(w http.ResponseWriter, r *http.Request) {
+	msg := "started"
+	job, err := s.cfg.Runner.StartBackfill(r.Context())
+	switch {
+	case err != nil:
+		msg = err.Error()
+	case job == "":
+		msg = "nothing to do (every card has a dish, or a backfill is already running)"
+	default:
+		msg = "started with " + job
+	}
+	http.Redirect(w, r, "/admin?backfill="+url.QueryEscape(msg), http.StatusSeeOther)
 }

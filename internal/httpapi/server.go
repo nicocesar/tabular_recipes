@@ -143,6 +143,7 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /logout", s.handleLogout)
 	m.HandleFunc("GET /admin", s.ownerPage(s.handleAdmin))
 	m.HandleFunc("GET /admin/recipes/{id}", s.ownerPage(s.handleAdminRecipe))
+	m.HandleFunc("POST /admin/backfill", s.owner(s.handleBackfill))
 
 	m.HandleFunc("POST /work/{id}", s.tick(s.handleWork))
 	m.HandleFunc("POST /tick", s.tick(s.handleTick))
@@ -231,6 +232,9 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v home
 		}
 		for _, rec := range recs {
 			row := cardRow{ID: rec.ID, Domain: card.Domain(rec.SourceURL), at: rec.CreatedAt, Date: i18n.Date(s.lang(r), rec.CreatedAt)}
+			if rec.Kind != store.KindCard {
+				continue // jobs live on the workbench
+			}
 			if rec.Recipe != nil {
 				row.Title = rec.Recipe.Title
 			} else {

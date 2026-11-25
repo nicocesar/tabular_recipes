@@ -21,7 +21,7 @@ type FS struct {
 }
 
 func NewFS(dir string) (*FS, error) {
-	for _, d := range []string{"recipes", "counters", "meta", "claims"} {
+	for _, d := range []string{"recipes", "counters", "meta", "claims", "dishes"} {
 		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
 			return nil, err
 		}
@@ -209,4 +209,68 @@ func (s *FS) PutMeta(_ context.Context, key string, v any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.write("meta", key, v)
+}
+
+func (s *FS) GetDish(_ context.Context, id string) (*Dish, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var d Dish
+	if err := s.read("dishes", id, &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (s *FS) Dishes(_ context.Context) ([]*Dish, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ents, err := os.ReadDir(filepath.Join(s.dir, "dishes"))
+	if err != nil {
+		return nil, err
+	}
+	var out []*Dish
+	for _, e := range ents {
+		if !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		var d Dish
+		if err := s.read("dishes", strings.TrimSuffix(e.Name(), ".json"), &d); err == nil {
+			out = append(out, &d)
+		}
+	}
+	return out, nil
+}
+
+func (s *FS) CreateDish(_ context.Context, d *Dish) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := os.Stat(s.path("dishes", d.ID)); err == nil {
+		return fmt.Errorf("store: dish %s exists", d.ID)
+	}
+	d.UpdatedAt = time.Now().UTC()
+	return s.write("dishes", d.ID, d)
+}
+
+func (s *FS) UpdateDish(_ context.Context, id string, fn func(*Dish) error) (*Dish, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var d Dish
+	if err := s.read("dishes", id, &d); err != nil {
+		return nil, err
+	}
+	if err := fn(&d); err != nil {
+		return nil, err
+	}
+	d.UpdatedAt = time.Now().UTC()
+	return &d, s.write("dishes", id, &d)
+}
+
+func (s *FS) DeleteDish(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	err := os.Remove(s.path("dishes", id))
+	if errors.Is(err, fs.ErrNotExist) {
+		return ErrNotFound
+	}
+	return err
 }

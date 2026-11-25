@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nicocesar/tabular_recipes/internal/recipe"
 	"github.com/nicocesar/tabular_recipes/internal/store"
 )
 
@@ -81,6 +82,7 @@ func submit(t *testing.T, edit func(m map[string]any)) func() Event {
 	}
 	var m map[string]any
 	json.Unmarshal(b, &m)
+	m["dish"] = map[string]any{"name": "Pancakes"}
 	if edit != nil {
 		edit(m)
 	}
@@ -186,4 +188,113 @@ func TestTickResumesExpiredLease(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("resumed run did not finish")
+}
+
+// fileCard runs one card through a fresh Run on rn's store.
+func fileCard(t *testing.T, rn *Runner, f *fakeAPI, url string) *store.Record {
+	t.Helper()
+	ctx := context.Background()
+	id := store.NewID()
+	if err := rn.Store.Create(ctx, &store.Record{ID: id, Status: store.Dispatched, SourceURL: url, CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	rn.API = f
+	if err := rn.Run(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := rn.Store.Get(ctx, id)
+	return r
+}
+
+// A first card makes its Dish; a copy folds into it; a different
+// version becomes variant 2; an unknown dish id is rejected.
+func TestDishesAndFolding(t *testing.T) {
+	ctx := context.Background()
+	rn, first := setup(t, &fakeAPI{script: []func() Event{submit(t, nil)}})
+	if err := rn.Run(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := rn.Store.Get(ctx, first)
+	if a.DishID == "" || a.Variant != 1 {
+		t.Fatalf("first card: dish %q variant %d", a.DishID, a.Variant)
+	}
+	d, _ := rn.Store.GetDish(ctx, a.DishID)
+	if d.Reference != a.ID || d.Names["en"] != "Pancakes" {
+		t.Fatalf("dish %+v", d)
+	}
+
+	pick := func(m map[string]any) { m["dish"] = map[string]any{"id": a.DishID} }
+	copyCard := fileCard(t, rn, &fakeAPI{script: []func() Event{submit(t, func(m map[string]any) {
+		pick(m)
+		m["steps"].([]any)[0].(map[string]any)["text"] = "whisk well" // trees differ; still a copy
+	})}}, "https://copies.example/pancakes")
+	if copyCard.Status != store.Folded || copyCard.FoldedInto != a.ID {
+		t.Fatalf("copy: %s into %q", copyCard.Status, copyCard.FoldedInto)
+	}
+	a, _ = rn.Store.Get(ctx, first)
+	if len(a.AlsoAt) != 1 || a.AlsoAt[0].URL != "https://copies.example/pancakes" {
+		t.Fatalf("also at: %+v", a.AlsoAt)
+	}
+
+	f := &fakeAPI{script: []func() Event{
+		submit(t, func(m map[string]any) { m["dish"] = map[string]any{"id": "nope"} }),
+		submit(t, func(m map[string]any) {
+			pick(m)
+			ings := m["ingredients"].([]any)
+			ings[0].(map[string]any)["qty"] = "3 cups"
+			ings[1].(map[string]any)["qty"] = "a lot"
+			m["label"] = "extra flour"
+		}),
+	}}
+	other := fileCard(t, rn, f, "https://other.example/pancakes")
+	if !strings.Contains(f.results[0], "not in the list") {
+		t.Fatalf("unknown dish id should be rejected: %q", f.results[0])
+	}
+	if other.Status != store.Ready || other.DishID != a.DishID || other.Variant != 2 {
+		t.Fatalf("variant: %s dish %q n %d", other.Status, other.DishID, other.Variant)
+	}
+}
+
+// A backfill resubmits its card unchanged plus the grouping fields; a
+// changed tree is rejected.
+func TestBackfill(t *testing.T) {
+	ctx := context.Background()
+	rn, cardID := setup(t, &fakeAPI{})
+	b, _ := os.ReadFile("../recipe/testdata/pancakes.json")
+	var old recipe.Recipe
+	json.Unmarshal(b, &old)
+	old.Lang, old.Label = "", ""
+	for i := range old.Ingredients {
+		old.Ingredients[i].Canon = ""
+	}
+	rn.Store.Update(ctx, cardID, func(r *store.Record) error {
+		r.Status, r.Recipe = store.Ready, &old
+		return nil
+	})
+	rn.API = &fakeAPI{script: []func() Event{
+		submit(t, func(m map[string]any) { m["title"] = "Better Pancakes" }),
+		submit(t, nil),
+	}}
+	job, err := rn.StartBackfill(ctx)
+	if err != nil || job == "" {
+		t.Fatalf("start: %q %v", job, err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if j, _ := rn.Store.Get(ctx, job); j.Status == store.Ready || j.Status == store.Failed {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	j, _ := rn.Store.Get(ctx, job)
+	c, _ := rn.Store.Get(ctx, cardID)
+	if j.Status != store.Ready || j.Meters.RejectTree != 1 {
+		t.Fatalf("job %s, tree rejections %d", j.Status, j.Meters.RejectTree)
+	}
+	if c.DishID == "" || c.Recipe.Label == "" || c.Recipe.Ingredients[0].Canon == "" || c.Recipe.Title != old.Title {
+		t.Fatalf("card not backfilled: %+v", c.Recipe)
+	}
+	if next, _ := rn.BackfillNext(ctx); next != "" {
+		t.Fatal("nothing should be left to backfill")
+	}
 }

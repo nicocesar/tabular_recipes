@@ -34,8 +34,14 @@ THE WRITING
 - Credit: the source page's title for the recipe, its URL, and the author only if the page names one.
 - Language: write the card in the language of the source (title, ingredients, steps, notes). Do not translate.
 
+THE DISH
+- The chest groups versions of the same dish. Your first message lists the dishes already in it, with their ids, names and variant labels. If this recipe is a version of one of them (in any language: "Curry de pollo" is "Chicken curry"), give its id as dish.id. Otherwise give dish.name: the everyday name of the dish in the card's language, without what makes this version special ("Chicken curry", not "Creamy chicken curry").
+- label: a few words in the card's language that tell this version apart from the dish's other variants ("with coconut milk & spinach", "con papas"). For a dish's first card, say what is characteristic of it.
+- lang: the two-letter code of the language the card is written in.
+- canon on every ingredient: its plain English name, lowercase, singular, without prep, size or brand. "chicken" for chicken thighs or pechuga de pollo, "tomato" for canned diced tomatoes or tomate triturado, "oil" for olive oil. It is a matching key across languages and is never shown.
+
 THE TOOLS
-- If you are given a URL, read it with web_fetch. If you are given pasted text, use only that text and do not fetch anything.
+- If you are given a URL, read it with web_fetch. If you are given pasted text, use only that text and do not fetch anything. If you are given a card that is already in the chest, do not fetch anything and resubmit it unchanged with the fields you are asked to add.
 - When the tree is ready, call submit_recipe. The server checks it. If it answers with an error, read the reasons, fix exactly those, and call submit_recipe again. A common one: the card must fit one printed page, so you may be asked to shorten step text or merge steps.
 - If you cannot produce a faithful recipe, call report_failure instead of guessing: kind "fetch_blocked" when the page cannot be read (blocked, paywalled, empty), "not_a_recipe" when it is not a recipe, "ambiguous" when it holds several recipes or too little to build one. Never invent ingredients or steps.
 - Finish by calling exactly one of these tools successfully. Do not end your turn without calling one.`

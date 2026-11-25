@@ -1,0 +1,196 @@
+{
+ "title": "One Bowl Buttermilk Bran Muffins",
+ "credit": {
+  "source_title": "One Bowl Buttermilk Bran Muffins",
+  "author": "Chris Scheuer",
+  "url": "https://getrecipecart.com/recipe/one-bowl-buttermilk-bran-muffins/63385fe472005f61023cc8c5"
+ },
+ "servings": "16",
+ "time": "35 min",
+ "ingredients": [
+  {
+   "id": "i1",
+   "qty": "½",
+   "unit": "cup",
+   "item": "mild-flavored oil",
+   "note": "sunflower, canola, etc.",
+   "canon": "oil"
+  },
+  {
+   "id": "i2",
+   "qty": "½",
+   "unit": "cup",
+   "item": "brown sugar",
+   "canon": "brown sugar"
+  },
+  {
+   "id": "i3",
+   "qty": "3",
+   "item": "eggs",
+   "canon": "egg"
+  },
+  {
+   "id": "i4",
+   "qty": "¼",
+   "unit": "cup",
+   "item": "molasses",
+   "canon": "molasses"
+  },
+  {
+   "id": "i5",
+   "qty": "1½",
+   "unit": "cups",
+   "item": "buttermilk",
+   "canon": "buttermilk"
+  },
+  {
+   "id": "i6",
+   "qty": "1",
+   "unit": "teaspoon",
+   "item": "vanilla extract",
+   "canon": "vanilla extract"
+  },
+  {
+   "id": "i7",
+   "qty": "2",
+   "unit": "cup",
+   "item": "wheat bran",
+   "canon": "wheat bran"
+  },
+  {
+   "id": "i8",
+   "qty": "1",
+   "unit": "cup",
+   "item": "whole wheat flour",
+   "canon": "whole wheat flour"
+  },
+  {
+   "id": "i9",
+   "qty": "⅔",
+   "unit": "cup",
+   "item": "all-purpose flour",
+   "canon": "all-purpose flour"
+  },
+  {
+   "id": "i10",
+   "qty": "1",
+   "unit": "teaspoon",
+   "item": "baking powder",
+   "canon": "baking powder"
+  },
+  {
+   "id": "i11",
+   "qty": "1",
+   "unit": "teaspoon",
+   "item": "baking soda",
+   "canon": "baking soda"
+  },
+  {
+   "id": "i12",
+   "qty": "½",
+   "unit": "teaspoon",
+   "item": "salt",
+   "canon": "salt"
+  },
+  {
+   "id": "i13",
+   "qty": "⅔",
+   "unit": "cup",
+   "item": "raisins",
+   "canon": "raisin"
+  },
+  {
+   "id": "i14",
+   "qty": "1",
+   "unit": "tablespoon",
+   "item": "butter",
+   "note": "melted",
+   "canon": "butter"
+  },
+  {
+   "id": "i15",
+   "qty": "1",
+   "unit": "tablespoon",
+   "item": "honey",
+   "canon": "honey"
+  }
+ ],
+ "steps": [
+  {
+   "id": "s1",
+   "text": "whisk until blended",
+   "inputs": [
+    "i1",
+    "i2",
+    "i3"
+   ]
+  },
+  {
+   "id": "s2",
+   "text": "stir in",
+   "inputs": [
+    "s1",
+    "i4",
+    "i5",
+    "i6"
+   ]
+  },
+  {
+   "id": "s3",
+   "text": "sprinkle over, stir just until combined",
+   "inputs": [
+    "s2",
+    "i7",
+    "i8",
+    "i9",
+    "i10",
+    "i11",
+    "i12"
+   ]
+  },
+  {
+   "id": "s4",
+   "text": "stir in",
+   "inputs": [
+    "s3",
+    "i13"
+   ]
+  },
+  {
+   "id": "s5",
+   "text": "fill greased tins; bake 12-15 min 400°F",
+   "inputs": [
+    "s4"
+   ]
+  },
+  {
+   "id": "s6",
+   "text": "rest in tin 5 min, then cool on rack",
+   "inputs": [
+    "s5"
+   ]
+  },
+  {
+   "id": "s7",
+   "text": "stir together",
+   "inputs": [
+    "i14",
+    "i15"
+   ]
+  },
+  {
+   "id": "s8",
+   "text": "brush over warm muffins",
+   "inputs": [
+    "s6",
+    "s7"
+   ]
+  }
+ ],
+ "notes": [
+  "Grease 16 cups for average muffins, or 12 standard cups for large ones.",
+  "Done when tops are firm and a tester comes out clean."
+ ],
+ "lang": "en",
+ "label": "one bowl, with molasses"
+}

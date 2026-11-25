@@ -13,6 +13,12 @@
     <div class="gauge"><span class="k">List cost, all time</span><span class="v">${{.CostAll}}</span><span class="w">{{.CostNote}}</span></div>
     <div class="gauge"><span class="k">Cards</span><span class="v">{{.Counts}}</span></div>
   </div>
+  {{if or .Undished .BackfillMsg}}
+  <div class="backfill">
+    {{if .Undished}}<form method="post" action="/admin/backfill" class="inline"><button>Backfill dishes ({{.Undished}} cards, one paid run each)</button></form>{{end}}
+    {{if .BackfillMsg}}<p class="quiet">Backfill: {{.BackfillMsg}}</p>{{end}}
+  </div>
+  {{end}}
   <h2>Meters</h2>
   <table class="meters">
     <tr><th>tokens in</th><th>out</th><th>cache read</th><th>cache write</th><th>fetches</th><th>active s</th><th>sessions</th><th>submissions</th><th>rejected (schema/tree/fit)</th><th>resumes</th></tr>
@@ -20,9 +26,9 @@
   </table>
   <h2>Every record</h2>
   <table class="records">
-    <tr><th>when</th><th>status</th><th>recipe</th><th>list cost</th><th>sub/rej</th><th></th></tr>
+    <tr><th>when</th><th>status</th><th>recipe</th><th>dish</th><th>list cost</th><th>sub/rej</th><th></th></tr>
     {{range .Rows}}
-    <tr><td>{{.Date}}</td><td><span class="badge badge-{{.Status}}">{{.Status}}</span></td><td><a href="/recipes/{{.ID}}">{{.Title}}</a></td><td>${{.Cost}}</td><td>{{.Subs}}</td><td><a href="/admin/recipes/{{.ID}}">trace</a></td></tr>
+    <tr><td>{{.Date}}</td><td><span class="badge badge-{{.Status}}">{{.Status}}</span></td><td>{{if .Kind}}<span class="quiet">{{.Title}}</span>{{else}}<a href="/recipes/{{.ID}}">{{.Title}}</a>{{end}}</td><td class="quiet">{{.Dish}}</td><td>${{.Cost}}</td><td>{{.Subs}}</td><td><a href="/admin/recipes/{{.ID}}">trace</a></td></tr>
     {{end}}
   </table>
 </section>

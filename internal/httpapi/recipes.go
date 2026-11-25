@@ -200,6 +200,10 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 	if rec == nil {
 		return
 	}
+	if to := redirectOf(rec); to != "" {
+		http.Redirect(w, r, "/recipes/"+to+keepQuery(r), http.StatusSeeOther)
+		return
+	}
 	v := recipeView{ID: rec.ID, Owner: s.isOwner(r), Failed: rec.Status == store.Failed, Status: statusOf(rec, s.lang(r)), Title: s.t(r, "recipe.pending_title")}
 	if rec.Status == store.Ready && rec.Recipe != nil {
 		// A real visit wears the card a little (ADR 0011).
@@ -342,7 +346,14 @@ func (s *Server) handleRetry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
-	if err := s.cfg.Store.Delete(r.Context(), r.PathValue("id")); err != nil && err != store.ErrNotFound {
+	ctx := r.Context()
+	if rec, err := s.cfg.Store.Get(ctx, r.PathValue("id")); err == nil && rec.DishID != "" {
+		// Leave the Dish; a removed Reference passes on, an empty Dish goes.
+		if d, err := s.cfg.Store.UpdateDish(ctx, rec.DishID, func(d *store.Dish) error { d.Remove(rec.ID); return nil }); err == nil && len(d.Variants) == 0 {
+			s.cfg.Store.DeleteDish(ctx, d.ID)
+		}
+	}
+	if err := s.cfg.Store.Delete(ctx, r.PathValue("id")); err != nil && err != store.ErrNotFound {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -360,4 +371,23 @@ func slug(t string) string {
 		s = s[:60]
 	}
 	return s
+}
+
+// redirectOf is where a record's page really is: a folded copy shows its
+// Variant (ADR 0018), a job shows its card.
+func redirectOf(rec *store.Record) string {
+	switch {
+	case rec.Status == store.Folded && rec.FoldedInto != "":
+		return rec.FoldedInto
+	case rec.Kind != store.KindCard && rec.Parent != "":
+		return rec.Parent
+	}
+	return ""
+}
+
+func keepQuery(r *http.Request) string {
+	if r.URL.RawQuery == "" {
+		return ""
+	}
+	return "?" + r.URL.RawQuery
 }
