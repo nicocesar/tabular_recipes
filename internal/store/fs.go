@@ -21,7 +21,7 @@ type FS struct {
 }
 
 func NewFS(dir string) (*FS, error) {
-	for _, d := range []string{"recipes", "counters", "meta"} {
+	for _, d := range []string{"recipes", "counters", "meta", "claims"} {
 		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
 			return nil, err
 		}
@@ -80,6 +80,27 @@ func (s *FS) Create(_ context.Context, r *Record) error {
 	}
 	r.UpdatedAt = time.Now().UTC()
 	return s.write("recipes", r.ID, r)
+}
+
+func (s *FS) CreateUnique(_ context.Context, key string, r *Record, live func(*Record) bool) (*Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	name := claimName(key)
+	var c claim
+	if err := s.read("claims", name, &c); err == nil {
+		var cur Record
+		if err := s.read("recipes", c.ID, &cur); err == nil && live(&cur) {
+			return &cur, nil
+		}
+	}
+	if _, err := os.Stat(s.path("recipes", r.ID)); err == nil {
+		return nil, fmt.Errorf("store: %s exists", r.ID)
+	}
+	r.UpdatedAt = time.Now().UTC()
+	if err := s.write("recipes", r.ID, r); err != nil {
+		return nil, err
+	}
+	return nil, s.write("claims", name, claim{ID: r.ID})
 }
 
 func (s *FS) Update(_ context.Context, id string, fn func(*Record) error) (*Record, error) {

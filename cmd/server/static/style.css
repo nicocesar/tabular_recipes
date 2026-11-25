@@ -75,6 +75,7 @@ button {
 button.link { background: none; color: var(--blue); padding: 0; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
 @media (prefers-color-scheme: dark) { button.link { color: var(--accent); } }
 button.danger { background: var(--red); }
+button:disabled { opacity: .6; cursor: progress; }
 .caps { margin: 0; font-size: 14px; }
 .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 

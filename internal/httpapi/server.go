@@ -86,7 +86,7 @@ func New(cfg Config) (*Server, error) {
 // A new static CSS/JS file must be added to this list.
 func assetVersion(assets fs.FS) (string, error) {
 	h := sha256.New()
-	for _, f := range []string{"static/style.css", "static/wakelock.js", "static/htmx.min.js"} {
+	for _, f := range []string{"static/style.css", "static/wakelock.js", "static/filing.js", "static/htmx.min.js"} {
 		b, err := fs.ReadFile(assets, f)
 		if err != nil {
 			return "", err

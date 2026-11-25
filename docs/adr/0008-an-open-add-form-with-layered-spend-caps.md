@@ -17,7 +17,7 @@ bot spend the Anthropic budget.
 
 Adding is open, behind layers from cheapest to hardest:
 
-1. **Dedupe by URL** — a URL already Ready redirects to it, at no cost.
+1. **Dedupe by URL or pasted text** — a source already filed (and not Failed) redirects to its card, at no cost.
 2. **Honeypot field** — a hidden input bots fill; such posts are dropped.
 3. **Per-IP cap** — 25 runs/day per hashed client IP (soft; IPs are cheap).
 4. **Global cap** — 100 runs/day across everyone, counted in the store.
@@ -50,3 +50,14 @@ observed ~$0.11 a run, a full day is ≈ $11; the $0.50 session cap bounds a
 day at $50. The workspace's monthly spend limit is the real ceiling, and
 at ≈ $20 it is reached after roughly 180 runs — raise it in the Console if
 the chest is meant to take more.
+
+**Amendment (2026-11-25): dedupe pastes, atomically.** The first day filed
+one pasted Chipá three times: filing takes ~3 s, the page gave no sign of
+life, and the visitor clicked again (twice, 78 ms apart). Each was a paid
+Run. Dedupe now covers pasted text (keyed by a hash of the text with
+whitespace collapsed) as well as URLs, and the check and the create are
+one transaction (`Store.CreateUnique` writes a Claim entity beside the
+record), so simultaneous submissions file one card. The dedupe runs before
+the caps, so a repeat costs nothing; a capped submission deletes its record.
+A record that is not Failed counts as a match. The form also disables its
+button with "Grampa is typing…" while it submits.

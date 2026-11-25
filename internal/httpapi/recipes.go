@@ -44,6 +44,16 @@ func NormURL(raw string) string {
 	return s
 }
 
+// DedupeKey is what makes two submissions the same card: the pasted text
+// with whitespace collapsed when there is any, else the normalised URL.
+func DedupeKey(norm, pasted string) string {
+	if pasted != "" {
+		h := sha256.Sum256([]byte(strings.Join(strings.Fields(pasted), " ")))
+		return "paste:" + hex.EncodeToString(h[:])
+	}
+	return "url:" + norm
+}
+
 func validURL(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && len(raw) < 2000
@@ -83,36 +93,8 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	norm := NormURL(v.URL)
-	if norm != "" && v.Pasted == "" {
-		if existing, err := s.cfg.Store.ByNormURL(ctx, norm); err == nil {
-			for _, e := range existing {
-				if e.Status != store.Failed {
-					http.Redirect(w, r, "/recipes/"+e.ID, http.StatusSeeOther)
-					return
-				}
-			}
-		}
-	}
 	now := time.Now().UTC()
 	ipHash := s.ipHash(r)
-	if !s.isOwner(r) {
-		if _, ok, err := s.cfg.Store.Incr(ctx, tabulate.IPKey(now, ipHash), tabulate.DailyPerIP); err != nil {
-			log.Printf("create: ip cap: %v", err)
-		} else if !ok {
-			v.Error = fmt.Sprintf("You've filed %d cards today — that's the limit per visitor. Come back tomorrow!", tabulate.DailyPerIP)
-			s.home(w, r, http.StatusTooManyRequests, v)
-			return
-		}
-	}
-	if _, ok, err := s.cfg.Store.Incr(ctx, tabulate.RunsKey(now), tabulate.DailyRuns); err != nil {
-		v.Error = "Couldn't reach the chest just now. Try again in a minute."
-		s.home(w, r, http.StatusServiceUnavailable, v)
-		return
-	} else if !ok {
-		v.Error = "Grampa has typed up all the cards he can for today. Come back tomorrow!"
-		s.home(w, r, http.StatusTooManyRequests, v)
-		return
-	}
 	rec := &store.Record{
 		ID: store.NewID(), Status: store.Dispatched, CreatedAt: now, DispatchedAt: now,
 		SourceURL: v.URL, NormURL: norm, Pasted: v.Pasted, PastedSource: v.Source,
@@ -123,9 +105,40 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		what = fmt.Sprintf("pasted text (%d chars)", len(v.Pasted))
 	}
 	rec.Log("filed", "filed: "+what)
-	if err := s.cfg.Store.Create(ctx, rec); err != nil {
+	// Dedupe and create in one transaction, so a double click or a
+	// resubmitted form lands on the card already being typed (ADR 0008).
+	existing, err := s.cfg.Store.CreateUnique(ctx, DedupeKey(norm, v.Pasted), rec, func(e *store.Record) bool { return e.Status != store.Failed })
+	if err != nil {
 		v.Error = "Couldn't file that card just now. Try again in a minute."
 		s.home(w, r, http.StatusServiceUnavailable, v)
+		return
+	}
+	if existing != nil {
+		http.Redirect(w, r, "/recipes/"+existing.ID, http.StatusSeeOther)
+		return
+	}
+	// Caps come after the dedupe so a repeat costs nothing; a capped
+	// submission takes its record back out.
+	refuse := func(status int, msg string) {
+		if err := s.cfg.Store.Delete(ctx, rec.ID); err != nil {
+			log.Printf("create: undo %s: %v", rec.ID, err)
+		}
+		v.Error = msg
+		s.home(w, r, status, v)
+	}
+	if !s.isOwner(r) {
+		if _, ok, err := s.cfg.Store.Incr(ctx, tabulate.IPKey(now, ipHash), tabulate.DailyPerIP); err != nil {
+			log.Printf("create: ip cap: %v", err)
+		} else if !ok {
+			refuse(http.StatusTooManyRequests, fmt.Sprintf("You've filed %d cards today — that's the limit per visitor. Come back tomorrow!", tabulate.DailyPerIP))
+			return
+		}
+	}
+	if _, ok, err := s.cfg.Store.Incr(ctx, tabulate.RunsKey(now), tabulate.DailyRuns); err != nil {
+		refuse(http.StatusServiceUnavailable, "Couldn't reach the chest just now. Try again in a minute.")
+		return
+	} else if !ok {
+		refuse(http.StatusTooManyRequests, "Grampa has typed up all the cards he can for today. Come back tomorrow!")
 		return
 	}
 	s.cfg.Runner.Start(ctx, rec.ID)

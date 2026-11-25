@@ -6,7 +6,9 @@ package store
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base32"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
@@ -143,6 +145,11 @@ type Store interface {
 	// stores the result. If fn returns an error nothing is written.
 	Update(ctx context.Context, id string, fn func(*Record) error) (*Record, error)
 	Delete(ctx context.Context, id string) error
+	// CreateUnique stores r unless the dedupe key already names a record
+	// that live accepts; then it returns that record and stores nothing.
+	// Claim and record are written together, so of two simultaneous
+	// submissions only one is created.
+	CreateUnique(ctx context.Context, key string, r *Record, live func(*Record) bool) (*Record, error)
 	ByStatus(ctx context.Context, s Status) ([]*Record, error)
 	ByNormURL(ctx context.Context, norm string) ([]*Record, error)
 	// Incr adds one to a named counter unless it is already at limit;
@@ -152,6 +159,17 @@ type Store interface {
 	// GetMeta/PutMeta keep small JSON values such as the last Tick.
 	GetMeta(ctx context.Context, key string, v any) error
 	PutMeta(ctx context.Context, key string, v any) error
+}
+
+// claimName turns a dedupe key (a normalised URL or a paste hash) into
+// a short fixed-length name.
+func claimName(key string) string {
+	h := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(h[:16])
+}
+
+type claim struct {
+	ID string `json:"id"`
 }
 
 // NewID is a short random id, safe in URLs.

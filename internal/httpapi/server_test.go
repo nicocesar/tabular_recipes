@@ -6,7 +6,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/nicocesar/tabular_recipes/internal/store"
 	"github.com/nicocesar/tabular_recipes/internal/tabulate"
@@ -89,5 +91,39 @@ func TestCreateCapsPerIP(t *testing.T) {
 	}
 	if c := post("https://example.com/one-too-many"); c != http.StatusTooManyRequests {
 		t.Fatalf("cap not enforced: %d", c)
+	}
+}
+
+// A double click on the paste form files one card: both submissions land
+// on it, and only one counts against the caps.
+func TestCreateDedupesPastes(t *testing.T) {
+	s := newServer(t)
+	post := func(pasted string) string {
+		req := httptest.NewRequest("POST", "/recipes", strings.NewReader(url.Values{"pasted": {pasted}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("X-Forwarded-For", "203.0.113.7")
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("post: %d", w.Code)
+		}
+		return w.Header().Get("Location")
+	}
+	var wg sync.WaitGroup
+	locs := make([]string, 3)
+	texts := []string{"Chipá\n500 g almidón\nhornear", "Chipá 500 g almidón hornear", "  Chipá\t500 g  almidón\n\nhornear "}
+	for i := range locs {
+		wg.Add(1)
+		go func() { defer wg.Done(); locs[i] = post(texts[i]) }()
+	}
+	wg.Wait()
+	if locs[0] != locs[1] || locs[1] != locs[2] {
+		t.Fatalf("filed more than one card: %v", locs)
+	}
+	if other := post("Brownies\ncacao"); other == locs[0] {
+		t.Fatal("different text landed on the same card")
+	}
+	if n, _ := s.cfg.Store.Count(t.Context(), tabulate.RunsKey(time.Now())); n != 2 {
+		t.Fatalf("runs counted %d, want 2", n)
 	}
 }

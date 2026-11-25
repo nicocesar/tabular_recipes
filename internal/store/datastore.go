@@ -88,6 +88,52 @@ func (s *Datastore) Create(ctx context.Context, r *Record) error {
 	return err
 }
 
+type claimEntity struct {
+	ID string `datastore:",noindex"`
+}
+
+func (s *Datastore) CreateUnique(ctx context.Context, key string, r *Record, live func(*Record) bool) (*Record, error) {
+	r.UpdatedAt = time.Now().UTC()
+	e, err := toEntity(r)
+	if err != nil {
+		return nil, err
+	}
+	ck := datastore.NameKey("Claim", claimName(key), nil)
+	var existing *Record
+	_, err = s.c.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		existing = nil
+		var c claimEntity
+		if err := tx.Get(ck, &c); err == nil {
+			var cur recipeEntity
+			if err := tx.Get(rkey(c.ID), &cur); err == nil {
+				if rec, err := fromEntity(&cur); err == nil && live(rec) {
+					existing = rec
+					return nil
+				}
+			} else if !errors.Is(err, datastore.ErrNoSuchEntity) {
+				return err
+			}
+		} else if !errors.Is(err, datastore.ErrNoSuchEntity) {
+			return err
+		}
+		var cur recipeEntity
+		if err := tx.Get(rkey(r.ID), &cur); err == nil {
+			return fmt.Errorf("store: %s exists", r.ID)
+		} else if !errors.Is(err, datastore.ErrNoSuchEntity) {
+			return err
+		}
+		if _, err := tx.Put(rkey(r.ID), e); err != nil {
+			return err
+		}
+		_, err := tx.Put(ck, &claimEntity{ID: r.ID})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return existing, nil
+}
+
 func (s *Datastore) Update(ctx context.Context, id string, fn func(*Record) error) (*Record, error) {
 	var out *Record
 	_, err := s.c.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
