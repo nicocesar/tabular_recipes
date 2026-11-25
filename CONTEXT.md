@@ -10,8 +10,9 @@ card — an SVG table — for the kitchen screen and for one printed Letter page
 ### The recipe
 
 **Recipe**:
-One dish as stored: a title, a Credit, servings and time, Ingredients,
-Steps and Notes. Its shape is a Tree.
+One way to cook a Dish, as stored: a title, a Credit, servings and time,
+Ingredients, Steps and Notes, in its source language. Its shape is a Tree.
+Shown as one Variant of its Dish.
 _Avoid_: entry, post, item
 
 **Ingredient**:
@@ -63,8 +64,63 @@ pencil tick), seeded from the Recipe id, placed only in margins, never
 printed. Well-used Cards earn one more.
 
 **Chest**:
-The home page: the add form and every Ready Card, newest first.
+The home page: the add form and every Dish with its Labels.
 _Avoid_: index, feed, catalogue
+
+### Dishes and variants
+
+**Dish**:
+What is being cooked ("Chicken curry"), with a name per language and no
+language of its own. Groups Variants.
+_Avoid_: category, group, recipe (a Recipe is one Variant)
+
+**Variant**:
+One Recipe within its Dish, numbered at filing ("variant 3"); the number is
+never reused or changed while it stays in the Dish.
+_Avoid_: version, alternative
+
+**Reference**:
+The Variant the others are compared against: the first filed, unless the
+Owner promotes another.
+_Avoid_: base, original, canonical recipe
+
+**Label**:
+A few words that tell a Variant apart ("with coconut milk & spinach"),
+written by the agent, edited by the Owner.
+_Avoid_: subtitle, tag
+
+**Canonical name**:
+An Ingredient's matching key: English, lowercase, singular ("chicken"),
+whatever the source language. Never shown.
+_Avoid_: normalized name, slug
+
+**Chip**:
+One computed difference from the Reference: added, changed or missing.
+_Avoid_: diff, tag
+
+**Fold**:
+Merging a copy of an existing Variant into it: same canonical ingredients
+and amounts, within one of slack. The copy's URL joins **Also found at**.
+_Avoid_: dedupe (that is the Claim, for the same URL or text)
+
+**Claim**:
+The record that makes one source (a normalized URL, a pasted text's hash,
+or a card and language) start at most one Run.
+
+### Languages
+
+**Overlay**:
+A Translation's words keyed by the ids of the one Tree; it cannot change
+structure.
+_Avoid_: localized recipe, copy
+
+**Translation**:
+A Run that writes one Overlay for one card in one language.
+_Avoid_: localisation
+
+**Catalog**:
+The committed page text for one language (`internal/i18n/<lang>.json`).
+_Avoid_: strings file, locale
 
 ### Running
 
