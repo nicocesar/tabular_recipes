@@ -70,9 +70,9 @@ One secret per shared secret, named like its env var.
 for s in SESSION_SECRET TICK_TOKEN; do
   openssl rand -hex 32 | tr -d '\n' | gcloud secrets create $s --data-file=-
 done
-# Choose the owner passphrase yourself:
-printf '%s' '<owner passphrase>' | gcloud secrets create OWNER_PASSWORD --data-file=-
-printf '%s' '<workspace API key>' | gcloud secrets create ANTHROPIC_API_KEY --data-file=-
+# Typed by the owner, silently, so the values never land in shell history:
+read -rsp "Owner passphrase: " v && printf '%s' "$v" | gcloud secrets create OWNER_PASSWORD --data-file=-; unset v
+read -rsp "Anthropic API key: " v && printf '%s' "$v" | gcloud secrets create ANTHROPIC_API_KEY --data-file=-; unset v
 for s in SESSION_SECRET TICK_TOKEN OWNER_PASSWORD ANTHROPIC_API_KEY; do
   gcloud secrets add-iam-policy-binding $s \
     --member=serviceAccount:${SA} --role=roles/secretmanager.secretAccessor
@@ -81,12 +81,28 @@ done
 
 ## 6. Cloud Build
 
+New projects run Cloud Build as the **Compute Engine default** service
+account, not the legacy Cloud Build one, so both get the deploy roles, and
+the compute one also needs to push images and write logs:
+
 ```sh
 export PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
 export CB=${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com
-gcloud projects add-iam-policy-binding ${PROJECT_ID} --member=serviceAccount:${CB} --role=roles/run.admin
-gcloud iam service-accounts add-iam-policy-binding ${SA} --member=serviceAccount:${CB} --role=roles/iam.serviceAccountUser
+export CE=${PROJECT_NUMBER}-compute@developer.gserviceaccount.com
+for m in ${CB} ${CE}; do
+  gcloud projects add-iam-policy-binding ${PROJECT_ID} --member=serviceAccount:${m} --role=roles/run.admin --condition=None
+  gcloud iam service-accounts add-iam-policy-binding ${SA} --member=serviceAccount:${m} --role=roles/iam.serviceAccountUser
+done
+gcloud projects add-iam-policy-binding ${PROJECT_ID} --member=serviceAccount:${CE} --role=roles/artifactregistry.writer --condition=None
+gcloud projects add-iam-policy-binding ${PROJECT_ID} --member=serviceAccount:${CE} --role=roles/logging.logWriter --condition=None
 ```
+
+The very first `gcloud builds submit` on a minutes-old project may fail with
+`serviceusage.services.use` PERMISSION_DENIED even for an Owner: that is
+propagation lag after enabling APIs. Retry after a minute.
+
+The first image (before the service exists) is built with
+`gcloud builds submit --region=${REGION} --tag ${REGION}-docker.pkg.dev/${PROJECT_ID}/${IMAGE_REPO}/tabular-recipes:<sha> .`
 
 Connect the GitHub repo `nicocesar/tabular_recipes` in Cloud Build and create
 a push-to-`main` trigger that runs `cloudbuild.yaml`.
