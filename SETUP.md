@@ -39,7 +39,18 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
 ```sh
 gcloud firestore databases create --location=${REGION} --type=datastore-mode
 gcloud artifacts repositories create ${IMAGE_REPO} --repository-format=docker --location=${REGION}
+gcloud artifacts repositories set-cleanup-policies ${IMAGE_REPO} --location=${REGION} \
+  --policy=ar-cleanup.json --no-dry-run
 ```
+
+Every deploy pushes an image (~8 MB) and a new build cache (~550 MB);
+without a cleanup policy the repository grows by half a gigabyte a deploy
+and bills for it (free to 0.5 GB, then $0.10/GB-month). `ar-cleanup.json`
+keeps the `buildcache` tag and the 5 most recent versions (rollback room)
+and deletes everything else older than a day. Policies run about once a
+day. `cloudbuild.yaml` builds with `--provenance=false --sbom=false` so a
+build is one manifest, not an index whose untagged children the policy
+would count and could delete.
 
 ## 3. Runtime service account
 
@@ -95,6 +106,14 @@ for m in ${CB} ${CE}; do
 done
 gcloud projects add-iam-policy-binding ${PROJECT_ID} --member=serviceAccount:${CE} --role=roles/artifactregistry.writer --condition=None
 gcloud projects add-iam-policy-binding ${PROJECT_ID} --member=serviceAccount:${CE} --role=roles/logging.logWriter --condition=None
+```
+
+`gcloud builds submit` uploads the source to `gs://${PROJECT_ID}_cloudbuild`
+once the first build runs; expire it after a week:
+
+```sh
+echo '{"rule":[{"action":{"type":"Delete"},"condition":{"age":7}}]}' > /tmp/lc.json
+gcloud storage buckets update gs://${PROJECT_ID}_cloudbuild --lifecycle-file=/tmp/lc.json
 ```
 
 The very first `gcloud builds submit` on a minutes-old project may fail with

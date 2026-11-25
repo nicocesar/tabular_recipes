@@ -1,0 +1,17 @@
+[
+  {
+    "name": "keep-buildcache",
+    "action": {"type": "Keep"},
+    "condition": {"tagState": "tagged", "tagPrefixes": ["buildcache"]}
+  },
+  {
+    "name": "keep-last-5",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {"keepCount": 5}
+  },
+  {
+    "name": "delete-the-rest",
+    "action": {"type": "Delete"},
+    "condition": {"tagState": "any", "olderThan": "1d"}
+  }
+]
