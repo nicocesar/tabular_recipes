@@ -75,7 +75,39 @@ type sheet struct {
 	ruled []float64
 }
 
+// widths caps how wide a column may grow before its text wraps. Deep
+// trees have many step columns, so narrower caps trade width for height
+// (ADR 0004); chooseWidths picks the caps.
+type widths struct{ step, ing float64 }
+
+var widthSteps = []widths{
+	{140, 190}, {124, 175}, {110, 160}, {96, 145}, {84, 130}, {72, 118}, {62, 108},
+}
+
+// chooseWidths keeps the widest caps whose printed size is within 3% of
+// the best achievable, so a card that already fits keeps its natural
+// look and a deep one wraps just enough.
+func chooseWidths(r *recipe.Recipe) widths {
+	best := 0.0
+	scales := make([]float64, len(widthSteps))
+	for i, w := range widthSteps {
+		sh := buildWith(r, Options{Print: true}, w)
+		scales[i] = min(printScale(sh.W, sh.H), 1.0)
+		best = max(best, scales[i])
+	}
+	for i, s := range scales {
+		if s >= best*0.97 {
+			return widthSteps[i]
+		}
+	}
+	return widthSteps[0]
+}
+
 func build(r *recipe.Recipe, opt Options) *sheet {
+	return buildWith(r, opt, chooseWidths(r))
+}
+
+func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 	sh := &sheet{opt: opt, title: r.Title, margin: 40}
 	if opt.Print {
 		sh.margin = 10
@@ -114,9 +146,9 @@ func build(r *recipe.Recipe, opt Options) *sheet {
 	for i, c := range L.Cells {
 		nat := natural(spans[i], cellSize) + 2*padX
 		lw := longestWord(spans[i], cellSize) + 2*padX
-		lo, hi := 64.0, 140.0
+		lo, hi := min(64.0, wc.step), wc.step
 		if c.Ingredient != nil {
-			lo, hi = 100, 190
+			lo, hi = min(100, wc.ing), wc.ing
 			if c.ColSpan > 1 {
 				continue // a late ingredient has room to the right anyway
 			}

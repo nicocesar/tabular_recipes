@@ -36,6 +36,15 @@ func Fit(r *recipe.Recipe) FitResult {
 	if landscape > portrait {
 		res = FitResult{Scale: landscape, Landscape: true}
 	}
+	return finish(r, w, h, res)
+}
+
+// printScale is the better orientation's scale for a w×h card.
+func printScale(w, h float64) float64 {
+	return max(min(pageShort/w, pageLong/h), min(pageLong/w, pageShort/h))
+}
+
+func finish(r *recipe.Recipe, w, h float64, res FitResult) FitResult {
 	if res.Scale > maxScale {
 		res.Scale = maxScale
 	}

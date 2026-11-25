@@ -185,6 +185,10 @@ func firstMessage(r *store.Record) string {
 // reports failure, or the Run gives up.
 func (rn *Runner) drive(ctx context.Context, id, sid string) error {
 	var lastMeter time.Time
+	// The session's server_tool_use counter stays 0 for the agent
+	// toolset's web_fetch (seen on the first real run), so fetches are
+	// counted from the event history instead.
+	var fetches int64
 	for {
 		select {
 		case <-ctx.Done():
@@ -196,6 +200,7 @@ func (rn *Runner) drive(ctx context.Context, id, sid string) error {
 			continue // transient; the ceiling bounds us
 		}
 		if time.Since(lastMeter) > 10*time.Second || info.Status != "running" {
+			info.Usage.Fetches = max(info.Usage.Fetches, fetches)
 			rn.meter(ctx, id, info.Usage)
 			lastMeter = time.Now()
 		}
@@ -210,6 +215,8 @@ func (rn *Runner) drive(ctx context.Context, id, sid string) error {
 		if err != nil {
 			continue
 		}
+		fetches = countFetches(evs)
+		rn.meterFetches(ctx, id, fetches)
 		done, err := rn.react(ctx, id, sid, evs)
 		if err != nil || done {
 			return err
@@ -368,6 +375,27 @@ func (rn *Runner) reject(ctx context.Context, id, kind, msg string) {
 			r.FitRejections = 0
 		}
 		r.Log("rejected", kind+": "+msg)
+		return nil
+	})
+}
+
+func countFetches(evs []Event) int64 {
+	var n int64
+	for _, e := range evs {
+		if e.Type == "agent.tool_use" && e.Name == "web_fetch" {
+			n++
+		}
+	}
+	return n
+}
+
+// meterFetches raises the current session's fetch reading to n.
+func (rn *Runner) meterFetches(ctx context.Context, id string, n int64) {
+	rn.Store.Update(ctx, id, func(r *store.Record) error {
+		if n > r.SessionSeen.Fetches {
+			r.Meters.Fetches += n - r.SessionSeen.Fetches
+			r.SessionSeen.Fetches = n
+		}
 		return nil
 	})
 }

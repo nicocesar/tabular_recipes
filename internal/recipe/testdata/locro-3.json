@@ -1,0 +1,236 @@
+{
+ "credit": {
+  "author": "Franc Navarro",
+  "source_title": "Locro Argentino Tradicional: Receta Criolla Paso a Paso",
+  "url": "https://rapirecetas.com/locro-argentino/"
+ },
+ "ingredients": [
+  {
+   "id": "i1",
+   "item": "maíz blanco partido",
+   "qty": "500",
+   "unit": "g"
+  },
+  {
+   "id": "i2",
+   "item": "porotos blancos secos",
+   "qty": "200",
+   "unit": "g"
+  },
+  {
+   "id": "i3",
+   "item": "agua caliente",
+   "qty": "2 a 3",
+   "unit": "litros"
+  },
+  {
+   "id": "i4",
+   "item": "aceite o grasa de cerdo",
+   "qty": "1",
+   "unit": "cucharada"
+  },
+  {
+   "id": "i5",
+   "item": "cebollas grandes",
+   "note": "picadas",
+   "qty": "2"
+  },
+  {
+   "id": "i6",
+   "item": "morrón rojo",
+   "note": "picado",
+   "qty": "1"
+  },
+  {
+   "id": "i7",
+   "item": "dientes de ajo",
+   "note": "picados",
+   "qty": "2"
+  },
+  {
+   "id": "i8",
+   "item": "falda de res",
+   "note": "en trozos",
+   "qty": "500",
+   "unit": "g"
+  },
+  {
+   "id": "i9",
+   "item": "pechito de cerdo",
+   "note": "en trozos",
+   "qty": "300",
+   "unit": "g"
+  },
+  {
+   "id": "i10",
+   "item": "panceta salada",
+   "note": "en cubos",
+   "qty": "200",
+   "unit": "g"
+  },
+  {
+   "id": "i11",
+   "item": "comino molido",
+   "qty": "1",
+   "unit": "cucharadita"
+  },
+  {
+   "id": "i12",
+   "item": "pimentón dulce",
+   "qty": "1",
+   "unit": "cucharadita"
+  },
+  {
+   "id": "i13",
+   "item": "ají molido",
+   "note": "opcional",
+   "qty": "½",
+   "unit": "cucharadita"
+  },
+  {
+   "id": "i14",
+   "item": "zapallo plomo",
+   "note": "en cubos",
+   "qty": "800",
+   "unit": "g"
+  },
+  {
+   "id": "i15",
+   "item": "chorizos colorados",
+   "note": "en rodajas",
+   "qty": "2"
+  },
+  {
+   "id": "i16",
+   "item": "sal y pimienta negra",
+   "note": "al gusto"
+  },
+  {
+   "id": "i17",
+   "item": "grasa de cerdo o aceite",
+   "note": "salsa",
+   "qty": "3",
+   "unit": "cucharadas"
+  },
+  {
+   "id": "i18",
+   "item": "cebollas de verdeo",
+   "note": "picadas",
+   "qty": "3"
+  },
+  {
+   "id": "i19",
+   "item": "pimentón dulce",
+   "note": "salsa",
+   "qty": "1",
+   "unit": "cucharada"
+  },
+  {
+   "id": "i20",
+   "item": "ají molido",
+   "note": "salsa",
+   "qty": "1",
+   "unit": "cucharadita"
+  },
+  {
+   "id": "i21",
+   "item": "comino molido",
+   "note": "salsa; opcional",
+   "qty": "½",
+   "unit": "cucharadita"
+  },
+  {
+   "id": "i22",
+   "item": "agua caliente",
+   "note": "salsa",
+   "qty": "3",
+   "unit": "cucharadas"
+  },
+  {
+   "id": "i23",
+   "item": "sal",
+   "note": "salsa",
+   "qty": "1",
+   "unit": "pizca"
+  }
+ ],
+ "notes": [
+  "Porotos entran tras 45 min de maíz.",
+  "Maíz y porotos remojados por separado.",
+  "Sal al final."
+ ],
+ "steps": [
+  {
+   "id": "s1",
+   "inputs": [
+    "i1",
+    "i2"
+   ],
+   "text": "remojar 8–12 h, escurrir"
+  },
+  {
+   "id": "s2",
+   "inputs": [
+    "s1",
+    "i3"
+   ],
+   "text": "hervir suave 45 + 30 min"
+  },
+  {
+   "id": "s3",
+   "inputs": [
+    "i4",
+    "i5",
+    "i6",
+    "i7",
+    "i8",
+    "i9",
+    "i10"
+   ],
+   "text": "sofreír, luego sellar carnes"
+  },
+  {
+   "id": "s4",
+   "inputs": [
+    "s2",
+    "s3",
+    "i11",
+    "i12",
+    "i13"
+   ],
+   "text": "unir; fuego bajo 60 min"
+  },
+  {
+   "id": "s5",
+   "inputs": [
+    "s4",
+    "i14",
+    "i15",
+    "i16"
+   ],
+   "text": "cocinar 45–60 min, aplastar zapallo"
+  },
+  {
+   "id": "s6",
+   "inputs": [
+    "i17",
+    "i18",
+    "i19",
+    "i20",
+    "i21",
+    "i22",
+    "i23"
+   ],
+   "text": "rehogar blanco; mezclar fuera del fuego"
+  },
+  {
+   "id": "s7",
+   "inputs": [
+    "s5",
+    "s6"
+   ],
+   "text": "reposar 10 min; servir con salsa"
+  }
+ ],
+ "title": "Locro argentino"
+}

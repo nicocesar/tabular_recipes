@@ -24,6 +24,17 @@ consecutive fit-only rejections** the server accepts the recipe and marks it
 The print view picks orientation per recipe with `@page { size: letter
 portrait|landscape }`.
 
+**Before rejecting, the server narrows columns.** A deep tree (many steps
+in sequence) has many step columns, and with fixed column widths the first
+real run (a 12-step locro, 7 steps deep) was rejected at 6.5 pt, so the
+agent merged 12 steps into 7 to pass. Now layout tries a short ladder of
+column-width caps (step columns 140 → 62 pt, ingredients 190 → 108 pt)
+and keeps the widest whose printed size is within 3% of the best
+achievable: text wraps onto more lines, trading width for height. The same
+widths are used on screen, so screen and paper match. The locro's first
+submission now fits at 8.6 pt, unmerged. The agent is only asked to shorten
+when no width fits.
+
 ## Considered Options
 
 - **Always scale to fit.** Rejected: unreadable output.

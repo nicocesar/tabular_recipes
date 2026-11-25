@@ -96,3 +96,24 @@ func TestWrapRespectsWidth(t *testing.T) {
 		}
 	}
 }
+
+// The first submission of a real run (a 7-deep Argentine locro) was
+// rejected at 6.5 pt with fixed column widths; narrowing columns should
+// make it fit without the agent merging steps.
+func TestDeepTreeFitsByWrapping(t *testing.T) {
+	r := load(t, "locro-1.json")
+	f := Fit(r)
+	t.Logf("locro-1: %.1f pt, landscape=%v", f.CellPt, f.Landscape)
+	if !f.OK {
+		t.Fatalf("deep tree should fit by wrapping: %.1f pt", f.CellPt)
+	}
+	if dir := os.Getenv("CARD_OUT"); dir != "" {
+		os.WriteFile(dir+"/locro-1.svg", SVG(r, Options{ID: "locro"}), 0o644)
+	}
+}
+
+func TestShallowCardKeepsWideColumns(t *testing.T) {
+	if w := chooseWidths(load(t, "pancakes.json")); w != widthSteps[0] {
+		t.Fatalf("pancakes narrowed to %+v", w)
+	}
+}

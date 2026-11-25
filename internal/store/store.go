@@ -106,6 +106,7 @@ func (r *Record) AddSession(u Usage) {
 	m.Fetches += max(d.Fetches, 0)
 	m.ActiveSeconds += max(d.ActiveSeconds, 0)
 	m.ListCostCents += max(d.ListCostCents, 0)
+	u.Fetches = max(u.Fetches, r.SessionSeen.Fetches)
 	r.SessionSeen = u
 }
 

@@ -42,7 +42,7 @@ func (f *fakeAPI) step() {
 	f.n++
 	ev := next()
 	ev.ID = "tu" + string(rune('0'+f.n))
-	f.events = append(f.events, ev, Event{Type: "session.status_idle", StopReason: "requires_action"})
+	f.events = append(f.events, Event{Type: "agent.tool_use", Name: "web_fetch"}, ev, Event{Type: "session.status_idle", StopReason: "requires_action"})
 }
 
 func (f *fakeAPI) SendMessage(_ context.Context, _, text string) error {
@@ -65,7 +65,7 @@ func (f *fakeAPI) SendToolResult(_ context.Context, _, id, text string, isErr bo
 }
 
 func (f *fakeAPI) Session(context.Context, string) (SessionInfo, error) {
-	return SessionInfo{Status: "idle", Usage: Usage{InputTokens: 1000, OutputTokens: 200, Fetches: 1, ListCostCents: 3}}, nil
+	return SessionInfo{Status: "idle", Usage: Usage{InputTokens: 1000, OutputTokens: 200, ListCostCents: 3}}, nil
 }
 
 func (f *fakeAPI) Events(context.Context, string) ([]Event, error) {
@@ -125,7 +125,7 @@ func TestRejectThenAccept(t *testing.T) {
 	if !strings.Contains(f.results[0], "never used") || !strings.Contains(f.results[1], "Accepted") {
 		t.Fatalf("results %q", f.results)
 	}
-	if r.Meters.InputTokens != 1000 || r.Meters.ListCostCents != 3 {
+	if r.Meters.InputTokens != 1000 || r.Meters.ListCostCents != 3 || r.Meters.Fetches != 2 {
 		t.Fatalf("usage not metered: %+v", r.Meters.Usage)
 	}
 }
