@@ -1,0 +1,5 @@
+/data/
+/server
+*.env
+.env*
+client_secret*
