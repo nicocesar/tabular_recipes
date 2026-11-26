@@ -5,6 +5,7 @@ go 1.27
 require (
 	cloud.google.com/go/datastore v1.24.0
 	golang.org/x/image v0.44.0
+	rsc.io/qr v0.2.0
 )
 
 require (

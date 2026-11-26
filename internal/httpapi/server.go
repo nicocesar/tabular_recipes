@@ -2,7 +2,7 @@
 // workbench, and the service's own /work and /tick routes. Every route
 // declares which credential admits it (rule 21, ADR 0009):
 //
-//	public      GET /, /recipes/{id}…, /dishes/{id}, /healthz, /version, /static/…; POST /recipes, /lang
+//	public      GET /, /recipes/{id}…, /dishes/{id}, /r/{id}, /healthz, /version, /static/…; POST /recipes, /lang
 //	owner       POST /recipes/{id}/retry|delete|move|label|unfold, /dishes/{id}/reference|name|merge,
 //	            /admin/backfill; GET /admin…
 //	TICK_TOKEN  POST /work/{id}, POST /tick
@@ -140,6 +140,8 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /recipes/{id}/label", s.owner(s.handleLabel))
 	m.HandleFunc("POST /recipes/{id}/unfold", s.owner(s.handleUnfold))
 	m.HandleFunc("GET /dishes/{id}", s.handleDish)
+	m.HandleFunc("GET /r/{id}", s.handleShort)
+	m.HandleFunc("GET /R/{id}", s.handleShort)
 	m.HandleFunc("POST /dishes/{id}/reference", s.owner(s.handlePromote))
 	m.HandleFunc("POST /dishes/{id}/name", s.owner(s.handleDishName))
 	m.HandleFunc("POST /dishes/{id}/merge", s.owner(s.handleMerge))

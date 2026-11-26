@@ -34,3 +34,9 @@ a deliberate addition under rule 1.
 ## Consequences
 
 - Paper never depends on the Reference: marks and chips are screen-only.
+- The QR sits in the title block's top-right corner, so it costs width,
+  not height; the header line, "Also found at" (at most four sites, then
+  "+N more") and the short link (after the imprint) add a few lines. The
+  Fit checked at submission lays out a stand-in for all of it, so a card
+  that passes still prints at 8 pt or more with its real furniture. The
+  link and QR come from the request's host (rule 17).

@@ -372,12 +372,13 @@ func (s *Server) handlePrint(w http.ResponseWriter, r *http.Request) {
 	if rec == nil {
 		return
 	}
-	fit := card.Fit(rec.Recipe)
+	opt := s.printOptions(r, rec)
+	fit := card.FitWith(rec.Recipe, opt)
 	v := printView{
 		ID: rec.ID, Title: rec.Recipe.Title, Orientation: "portrait",
 		WidthPt: fmt.Sprintf("%.1f", fit.Width), HeightPt: fmt.Sprintf("%.1f", fit.Height),
 		Small: rec.MayNotFit || !fit.OK,
-		SVG:   template.HTML(card.SVG(rec.Recipe, card.Options{Print: true, Pasted: rec.WasPasted})),
+		SVG:   template.HTML(card.SVG(rec.Recipe, opt)),
 	}
 	if fit.Landscape {
 		v.Orientation = "landscape"

@@ -40,6 +40,43 @@ type Options struct {
 	// Marks tint ingredient cells against the Dish's Reference (ADR
 	// 0017), keyed by ingredient id. Screen only: Print ignores them.
 	Marks map[string]Mark
+	// Print furniture (ADR 0019), drawn only when Print is set: the
+	// "Dish · variant N · Label" line above the title, the "Also found
+	// at" line under the credit, the short link after the imprint, and
+	// its QR code beside the title block.
+	Header, Also, Link string
+	QR                 [][]bool // [y][x], true is a dark module
+}
+
+// QR geometry in card points: a version 3 code (29 modules) at 1.6 pt
+// a module with a 2-module quiet zone is about 18 mm at scale 1.
+const (
+	qrModule = 1.6
+	qrQuiet  = 2
+)
+
+// furniture is a stand-in for the print furniture, so the Fit checked
+// at submission leaves room for it on paper.
+var furniture = Options{
+	Header: "A dish name of usual length · variant 12 · a label of usual length",
+	Also:   "Also found at: example.com, example.org, example.net",
+	Link:   "recipes.nicocesar.com/r/abcdefghijklm",
+	QR:     blankQR(29),
+}
+
+func blankQR(n int) [][]bool {
+	q := make([][]bool, n)
+	for i := range q {
+		q[i] = make([]bool, n)
+	}
+	return q
+}
+
+func (o Options) qrSide() float64 {
+	if !o.Print || len(o.QR) == 0 {
+		return 0
+	}
+	return float64(len(o.QR)+2*qrQuiet) * qrModule
 }
 
 // Mark is one ingredient's difference: Kind "add" or "chg", and the
@@ -82,6 +119,8 @@ type sheet struct {
 	texts   []textBlock
 	// blue ruled lines behind the title block (screen only)
 	ruled []float64
+	ruleW float64 // the red rule's length: short of the QR code
+	qrX, qrY float64
 }
 
 // widths caps how wide a column may grow before its text wraps. Deep
@@ -236,11 +275,26 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 	cw := tw
 	x0 := m
 	y := m + 6
-
-	titleLines := wrap([]span{{faceTitle, r.Title, "ink"}}, titleSize, cw)
-	y += faceTitle.asc * titleSize / faceTitle.upm
-	sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: cw, lines: titleLines, size: titleSize, lead: titleSize * 1.2})
 	titleTop := m
+	// The title block narrows to leave the QR code its corner.
+	qs := opt.qrSide()
+	bw := cw
+	if qs > 0 {
+		bw = cw - qs - 6
+		sh.qrX, sh.qrY = x0+cw-qs, titleTop
+	}
+	sh.ruleW = bw
+
+	if h := strings.TrimSpace(opt.Header); h != "" && opt.Print {
+		hl := wrap(prose(h, faceMono, "pencil"), metaSize, bw)
+		y += metaSize - 4
+		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: bw, lines: hl, size: metaSize, lead: metaSize * 1.3})
+		y += float64(len(hl)-1)*metaSize*1.3 + 6
+	}
+
+	titleLines := wrap([]span{{faceTitle, r.Title, "ink"}}, titleSize, bw)
+	y += faceTitle.asc * titleSize / faceTitle.upm
+	sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: bw, lines: titleLines, size: titleSize, lead: titleSize * 1.2})
 	y += float64(len(titleLines)-1) * titleSize * 1.2
 	y += 7
 	sh.ruleY = y
@@ -255,14 +309,24 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 	}
 	if len(meta) > 0 {
 		y += metaSize
-		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: cw, lines: wrap([]span{{faceMono, strings.Join(meta, " · "), "ink"}}, metaSize, cw), size: metaSize, lead: metaSize * 1.3})
+		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: bw, lines: wrap([]span{{faceMono, strings.Join(meta, " · "), "ink"}}, metaSize, bw), size: metaSize, lead: metaSize * 1.3})
 		y += 3
 	}
-	if credit := CreditLine(r, opt.Pasted); credit != "" {
-		cl := wrap(prose(credit, faceItalic, "pencil"), noteSize, cw)
+	lines := []string{CreditLine(r, opt.Pasted)}
+	if opt.Print {
+		lines = append(lines, opt.Also)
+	}
+	for _, t := range lines {
+		if strings.TrimSpace(t) == "" {
+			continue
+		}
+		cl := wrap(prose(t, faceItalic, "pencil"), noteSize, bw)
 		y += noteSize + 1
-		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: cw, lines: cl, size: noteSize, lead: noteLead})
+		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: bw, lines: cl, size: noteSize, lead: noteLead})
 		y += float64(len(cl)-1) * noteLead
+	}
+	if qs > 0 && y < titleTop+qs {
+		y = titleTop + qs
 	}
 	sh.titleR = rect{x0, titleTop, cw, y - titleTop}
 	for ly := sh.ruleY + 13; ly < y+2; ly += 13 {
@@ -303,7 +367,11 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 
 	// Imprint.
 	y += 16
-	stamp := wrap([]span{{faceTitle, i18n.T(r.Lang, "card.stamp"), "red"}}, stampSize, cw)
+	stampSpans := []span{{faceTitle, i18n.T(r.Lang, "card.stamp"), "red"}}
+	if l := strings.TrimSpace(opt.Link); l != "" && opt.Print {
+		stampSpans = append(stampSpans, span{faceMono, " · " + l, "red"})
+	}
+	stamp := wrap(stampSpans, stampSize, cw)
 	sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: cw, lines: stamp, size: stampSize, lead: stampSize, center: true})
 	y += 4
 
@@ -381,6 +449,28 @@ func sum(xs []float64) float64 {
 }
 
 // SVG renders the Card. r must have passed recipe.Validate.
+// qrPath draws the dark modules as one path, a run of each row at a time.
+func qrPath(q [][]bool, x0, y0 float64) string {
+	var b strings.Builder
+	b.WriteString(`<path class="ink" d="`)
+	for y, row := range q {
+		for x := 0; x < len(row); {
+			if !row[x] {
+				x++
+				continue
+			}
+			start := x
+			for x < len(row) && row[x] {
+				x++
+			}
+			fmt.Fprintf(&b, "M%s %sh%sv%sh-%sz", trim(x0+float64(start)*qrModule), trim(y0+float64(y)*qrModule),
+				trim(float64(x-start)*qrModule), trim(qrModule), trim(float64(x-start)*qrModule))
+		}
+	}
+	b.WriteString(`"/>`)
+	return b.String()
+}
+
 func SVG(r *recipe.Recipe, opt Options) []byte {
 	return build(r, opt).write()
 }
@@ -408,7 +498,10 @@ func (sh *sheet) write() []byte {
 		}
 		body.WriteString(stains(sh))
 	}
-	f(`<line class="rule" x1="%s" y1="%s" x2="%s" y2="%s"/>`, trim(sh.titleR.x), trim(sh.ruleY), trim(sh.titleR.x+sh.titleR.w), trim(sh.ruleY))
+	f(`<line class="rule" x1="%s" y1="%s" x2="%s" y2="%s"/>`, trim(sh.titleR.x), trim(sh.ruleY), trim(sh.titleR.x+sh.ruleW), trim(sh.ruleY))
+	if qs := sh.opt.qrSide(); qs > 0 {
+		body.WriteString(qrPath(sh.opt.QR, sh.qrX+qrQuiet*qrModule, sh.qrY+qrQuiet*qrModule))
+	}
 
 	for _, c := range sh.cells {
 		cls := "ingcell"

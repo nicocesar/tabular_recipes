@@ -193,3 +193,51 @@ func TestUnfold(t *testing.T) {
 		t.Error("the copy should leave Also found at")
 	}
 }
+
+func TestPrintFurniture(t *testing.T) {
+	s := newServer(t)
+	a := fileVariant(t, s, "d1", bran(t), "https://a.example/bran")
+	v2 := bran(t)
+	v2.Label = "with raisins"
+	b := fileVariant(t, s, "d1", v2, "https://b.example/bran")
+	s.cfg.Store.Update(context.Background(), b, func(x *store.Record) error {
+		x.AlsoAt = []store.Source{{URL: "https://copy.example/x", Record: "zz"}}
+		return nil
+	})
+	_ = a
+	code, page := get(t, s, "/recipes/"+b+"/print")
+	if code != 200 {
+		t.Fatal(code)
+	}
+	for _, want := range []string{`<path class="ink" d="M`, `<title id="card-title">`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("print lacks %s", want)
+		}
+	}
+	// Glyphs are paths, so check the furniture through the options.
+	req := httptest.NewRequest("GET", "/recipes/"+b+"/print", nil)
+	rec, _ := s.cfg.Store.Get(context.Background(), b)
+	opt := s.printOptions(req, rec)
+	if opt.Header != "Bran muffins · variant 2 · with raisins" {
+		t.Errorf("header %q", opt.Header)
+	}
+	if opt.Also != "Also found at: copy.example" || opt.Link != "example.com/r/"+b || len(opt.QR) == 0 {
+		t.Errorf("also %q link %q qr %d", opt.Also, opt.Link, len(opt.QR))
+	}
+	if n := len(qrModules("HTTPS://RECIPES.NICOCESAR.COM/R/ABCDEFGHIJKLM")); n != 29 {
+		t.Errorf("the real link should be a version 3 code (29 modules), got %d", n)
+	}
+	// The QR is uppercase; the short link takes it either way.
+	for _, p := range []string{"/r/" + strings.ToUpper(b), "/R/" + strings.ToUpper(b), "/r/" + b} {
+		req := httptest.NewRequest("GET", p, nil)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		if w.Code != http.StatusMovedPermanently || w.Header().Get("Location") != "/recipes/"+b {
+			t.Errorf("%s: %d %s", p, w.Code, w.Header().Get("Location"))
+		}
+	}
+	// The card page and download never carry the QR.
+	if _, svg := get(t, s, "/recipes/"+b+"/card.svg"); strings.Contains(svg, "h1.6v1.6") {
+		t.Error("the download should have no QR")
+	}
+}

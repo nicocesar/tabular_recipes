@@ -27,9 +27,19 @@ type FitResult struct {
 	Message   string // for the agent when !OK
 }
 
-// Fit computes the best orientation and checks the 8 pt floor.
+// Fit computes the best orientation and checks the 8 pt floor, leaving
+// room for the print furniture (ADR 0019) any card will carry.
 func Fit(r *recipe.Recipe) FitResult {
-	w, h := Size(r, Options{Print: true})
+	opt := furniture
+	opt.Print = true
+	return FitWith(r, opt)
+}
+
+// FitWith is Fit for one rendering's actual Options: the print page
+// sizes the card it really draws.
+func FitWith(r *recipe.Recipe, opt Options) FitResult {
+	opt.Print = true
+	w, h := Size(r, opt)
 	portrait := min(pageShort/w, pageLong/h)
 	landscape := min(pageLong/w, pageShort/h)
 	res := FitResult{Scale: portrait}
