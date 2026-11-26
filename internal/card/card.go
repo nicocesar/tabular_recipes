@@ -46,6 +46,9 @@ type Options struct {
 	// its QR code beside the title block.
 	Header, Also, Link string
 	QR                 [][]bool // [y][x], true is a dark module
+	// From is the original's language when the Card shows an Overlay:
+	// the credit then says "translated from Spanish" (ADR 0015).
+	From string
 }
 
 // QR geometry in card points: a version 3 code (29 modules) at 1.6 pt
@@ -312,7 +315,11 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 		sh.texts = append(sh.texts, textBlock{x: x0, y: y, w: bw, lines: wrap([]span{{faceMono, strings.Join(meta, " · "), "ink"}}, metaSize, bw), size: metaSize, lead: metaSize * 1.3})
 		y += 3
 	}
-	lines := []string{CreditLine(r, opt.Pasted)}
+	credit := CreditLine(r, opt.Pasted)
+	if opt.From != "" {
+		credit = strings.TrimPrefix(credit+" · "+i18n.T(r.Lang, "card.translated", i18n.LangName(r.Lang, opt.From)), " · ")
+	}
+	lines := []string{credit}
 	if opt.Print {
 		lines = append(lines, opt.Also)
 	}

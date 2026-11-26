@@ -2,7 +2,7 @@
 // workbench, and the service's own /work and /tick routes. Every route
 // declares which credential admits it (rule 21, ADR 0009):
 //
-//	public      GET /, /recipes/{id}…, /dishes/{id}, /r/{id}, /healthz, /version, /static/…; POST /recipes, /lang
+//	public      GET /, /recipes/{id}…, /dishes/{id}, /r/{id}, /healthz, /version, /static/…; POST /recipes, /recipes/{id}/translate, /lang
 //	owner       POST /recipes/{id}/retry|delete|move|label|unfold, /dishes/{id}/reference|name|merge,
 //	            /admin/backfill; GET /admin…
 //	TICK_TOKEN  POST /work/{id}, POST /tick
@@ -136,6 +136,7 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /recipes/{id}/print", s.handlePrint)
 	m.HandleFunc("POST /recipes/{id}/retry", s.owner(s.handleRetry))
 	m.HandleFunc("POST /recipes/{id}/delete", s.owner(s.handleDelete))
+	m.HandleFunc("POST /recipes/{id}/translate", s.handleTranslate)
 	m.HandleFunc("POST /recipes/{id}/move", s.owner(s.handleMove))
 	m.HandleFunc("POST /recipes/{id}/label", s.owner(s.handleLabel))
 	m.HandleFunc("POST /recipes/{id}/unfold", s.owner(s.handleUnfold))
@@ -251,7 +252,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v home
 	cardRowOf := func(rec *store.Record) cardRow {
 		row := cardRow{Href: "/recipes/" + rec.ID, Domain: card.Domain(rec.SourceURL), at: rec.CreatedAt, Date: i18n.Date(lang, rec.CreatedAt)}
 		if rec.Recipe != nil {
-			row.Title = rec.Recipe.Title
+			row.Title = s.shown(rec, lang).Title
 		} else {
 			row.Title = firstNonEmpty(rec.SourceURL, rec.PastedSource, "pasted recipe")
 		}
@@ -305,9 +306,10 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v home
 			for i, x := range vs {
 				row.at = later(row.at, x.Rec.CreatedAt)
 				if i < homeLabels {
-					l := labelRow{N: x.N, Text: x.Rec.Recipe.Label}
-					if x.Rec.Recipe.Lang != lang {
-						l.Lang = x.Rec.Recipe.Lang
+					rc := s.shown(x.Rec, lang)
+					l := labelRow{N: x.N, Text: rc.Label}
+					if rc.Lang != lang {
+						l.Lang = rc.Lang
 					}
 					row.Labels = append(row.Labels, l)
 				}

@@ -38,7 +38,35 @@ func (d *Demo) SendMessage(_ context.Context, sid, text string) error {
 	d.mu.Unlock()
 	time.AfterFunc(4*time.Second, func() {
 		var m map[string]any
-		if card, ok := between(text, "<card>\n", "\n</card>"); ok {
+		tool := "submit_recipe"
+		if to := demoTo.FindStringSubmatch(text); to != nil {
+			// A translation: every word tagged with the target language.
+			card, _ := between(text, "<card>\n", "\n</card>")
+			var r map[string]any
+			json.Unmarshal([]byte(card), &r)
+			tag := func(v any) string { return "[" + to[1] + "] " + fmt.Sprint(v) }
+			var ings, steps []any
+			for _, x := range r["ingredients"].([]any) {
+				x := x.(map[string]any)
+				ings = append(ings, map[string]any{"id": x["id"], "qty": x["qty"], "unit": x["unit"], "item": tag(x["item"])})
+			}
+			for _, x := range r["steps"].([]any) {
+				x := x.(map[string]any)
+				steps = append(steps, map[string]any{"id": x["id"], "text": tag(x["text"])})
+			}
+			var notes []any
+			for _, n := range asSlice(r["notes"]) {
+				notes = append(notes, tag(n))
+			}
+			m = map[string]any{"lang": to[1], "title": tag(r["title"]), "ingredients": ings, "steps": steps, "notes": notes,
+				"label": tag(r["label"]), "dish": tag(r["title"])}
+			for _, k := range []string{"servings", "time"} {
+				if v, ok := r[k]; ok && v != "" {
+					m[k] = tag(v)
+				}
+			}
+			tool = "submit_translation"
+		} else if card, ok := between(text, "<card>\n", "\n</card>"); ok {
 			// A backfill: the card as given, plus the grouping fields.
 			json.Unmarshal([]byte(card), &m)
 			m["lang"], m["label"] = "en", "as first filed"
@@ -52,7 +80,8 @@ func (d *Demo) SendMessage(_ context.Context, sid, text string) error {
 			m["credit"] = map[string]any{"source_title": "Demo pancakes (DEMO_AGENT)"}
 		}
 		// Join an existing dish of the same name, as the real agent would.
-		if name, _ := m["dish"].(map[string]any)["name"].(string); name != "" {
+		if dm, ok := m["dish"].(map[string]any); !ok {
+		} else if name, _ := dm["name"].(string); name != "" {
 			if id := demoDishID.FindStringSubmatch(text); id != nil && strings.Contains(id[2], name) {
 				m["dish"] = map[string]any{"id": id[1]}
 			}
@@ -61,13 +90,18 @@ func (d *Demo) SendMessage(_ context.Context, sid, text string) error {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		d.events[sid] = append(d.events[sid],
-			Event{ID: "demo-tu", Type: "agent.custom_tool_use", Name: "submit_recipe", Input: in},
+			Event{ID: "demo-tu", Type: "agent.custom_tool_use", Name: tool, Input: in},
 			Event{Type: "session.status_idle", StopReason: "requires_action"})
 	})
 	return nil
 }
 
-var demoDishID = regexp.MustCompile(`(?m)^- (\w+): (.*)$`)
+var (
+	demoDishID = regexp.MustCompile(`(?m)^- (\w+): (.*)$`)
+	demoTo     = regexp.MustCompile(`\(lang "([a-z]{2})"\)`)
+)
+
+func asSlice(v any) []any { s, _ := v.([]any); return s }
 
 func between(s, a, b string) (string, bool) {
 	_, rest, ok := strings.Cut(s, a)

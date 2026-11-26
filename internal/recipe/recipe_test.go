@@ -121,3 +121,23 @@ func TestStepsInOrder(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestOverlay(t *testing.T) {
+	r := load(t, "pancakes.json")
+	o := &Overlay{Lang: "es", Title: "Panqueques", Servings: r.Servings, Time: r.Time, Label: "x", Dish: "Panqueques"}
+	for _, in := range r.Ingredients {
+		o.Ingredients = append(o.Ingredients, IngredientWords{ID: in.ID, Item: "es"})
+	}
+	for _, s := range r.Steps {
+		o.Steps = append(o.Steps, StepWords{ID: s.ID, Text: "es"})
+	}
+	o.Notes = make([]string, len(r.Notes))
+	if ps := ValidateOverlay(r, o, "es"); len(ps) != 0 {
+		t.Fatalf("a full overlay: %v", ps)
+	}
+	o.Steps = append(o.Steps, StepWords{ID: "s99", Text: "x"})
+	o.Ingredients = o.Ingredients[1:]
+	if ps := ValidateOverlay(r, o, "it"); len(ps) != 3 {
+		t.Fatalf("want lang, unknown step, missing ingredient: %v", ps)
+	}
+}

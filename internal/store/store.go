@@ -72,6 +72,12 @@ type Record struct {
 	AlsoAt     []Source `json:"also_at,omitempty"`
 	// BackfillTried marks a card the backfill chain has already visited.
 	BackfillTried bool `json:"backfill_tried,omitempty"`
+	// Translations are a card's Overlays by language; Translating names
+	// the translate job in flight per language (ADRs 0014, 0015). A
+	// translate job's own target language is To.
+	Translations map[string]*recipe.Overlay `json:"translations,omitempty"`
+	Translating  map[string]string          `json:"translating,omitempty"`
+	To           string                     `json:"to,omitempty"`
 
 	// The Run.
 	SessionID     string    `json:"session_id,omitempty"`

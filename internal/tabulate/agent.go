@@ -9,10 +9,16 @@ import "github.com/nicocesar/tabular_recipes/internal/recipe"
 // agent version.
 const Model = "claude-sonnet-5-5"
 
-// AgentName and EnvName are the persisted Managed Agents objects.
+// TranslatorModel is the translator's model (ADR 0014): regional
+// cooking terms are where a cheaper model's mistakes cost a dinner.
+const TranslatorModel = "claude-sonnet-5-5"
+
+// AgentName, TranslatorName and EnvName are the persisted Managed Agents
+// objects.
 const (
-	AgentName = "recipes-tabulator"
-	EnvName   = "recipes-env"
+	AgentName      = "recipes-tabulator"
+	TranslatorName = "recipes-translator"
+	EnvName        = "recipes-env"
 )
 
 // SessionBudgetCents caps one session's list cost (ADR 0008).
@@ -80,5 +86,37 @@ func Spec() AgentSpec {
 				},
 			},
 		},
+	}
+}
+
+const translatorSystem = `You translate one recipe card of Grampa's chest into another language, for a home cook who speaks it.
+
+WHAT YOU GET
+- The card as JSON in <card> tags: title, servings, time, ingredients (each with an id), steps (each with an id and the ids it combines), notes, label, and the dish it belongs to. The target language is named in the message.
+
+WHAT YOU WRITE
+- Words only. The tree is fixed: give every ingredient id and every step id exactly once, unchanged, and nothing else. Do not merge, split, add or drop anything. Give one note per original note, in order.
+- Write as a cook of that language writes in a kitchen notebook, not as a dictionary: use the everyday regional term ("zapallo", "choclo", "a punto nieve", "heavy cream") and the target's usual units (cup → taza, tablespoon → cucharada). Keep quantities exactly as written; never convert or scale.
+- Steps stay terse verb phrases of about six words or fewer; always keep times and temperatures.
+- label: the variant label, translated. dish: the dish's everyday name in the target language; if the message gives the dish's name in that language already, use it.
+- Spanish is rioplatense: use voseo where a verb addresses the cook ("batí", "agregá").
+
+THE TOOL
+- Call submit_translation with the whole translation. The server checks it. If it answers with an error, fix exactly those points and call it again. The translated card must still fit one printed page, so you may be asked to shorten step text.
+- Finish by calling submit_translation successfully. Do not end your turn without calling it.`
+
+// TranslatorSpec is the translator's desired configuration (ADR 0014):
+// no toolset, no fetch, one custom tool.
+func TranslatorSpec() AgentSpec {
+	return AgentSpec{
+		Name:   TranslatorName,
+		Model:  TranslatorModel,
+		System: translatorSystem,
+		Tools: []map[string]any{{
+			"type":         "custom",
+			"name":         "submit_translation",
+			"description":  "Submit the translated words of the card. The server validates them and either accepts them or returns an error listing what to fix.",
+			"input_schema": recipe.OverlaySchema(),
+		}},
 	}
 }

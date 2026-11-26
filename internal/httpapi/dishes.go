@@ -103,8 +103,9 @@ func (s *Server) handleDish(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	v.Sub = i18n.T(lang, "dish.sub", len(vs), refN)
+	refRc := s.shown(ref, lang)
 	for _, x := range vs {
-		rc := x.Rec.Recipe
+		rc := s.shown(x.Rec, lang)
 		row := variantRow{ID: x.Rec.ID, N: x.N, Label: rc.Label, Reference: x.Rec == ref,
 			From:  source(x.Rec, lang),
 			Facts: i18n.T(lang, "dish.facts", len(rc.Ingredients), len(rc.Steps)),
@@ -116,7 +117,7 @@ func (s *Server) handleDish(w http.ResponseWriter, r *http.Request) {
 			row.Copies = i18n.T(lang, "dish.copies", n)
 		}
 		if !row.Reference {
-			diff := dishcmp.Compare(ref.Recipe, rc)
+			diff := dishcmp.Compare(refRc, rc)
 			row.Chips = chips(diff, lang)
 			row.Same = i18n.T(lang, "dish.same", diff.Same)
 		}

@@ -32,3 +32,9 @@ Meters. The Credit says "translated from Spanish".
 
 - The translator cannot change structure, only words.
 - Translations are small; storing several per card is cheap.
+- Overlays live on the card record (`translations`, by language). The
+  visitor's language picks one wherever the card is shown: the card page,
+  chips, Labels, marks and the print header. `?orig=1` shows the original;
+  downloads and prints take the language from `?lang=` only, so a cached
+  URL never mixes languages. Accepting an Overlay also gives the Dish a
+  name in that language if it has none.

@@ -148,17 +148,20 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 type statusView struct {
-	ID, State, Line, Hint string
-	Polling               bool
+	ID, State, Heading, Line, Hint string
+	Polling                        bool
 }
 
 func statusOf(rec *store.Record, lang string) statusView {
 	t := func(k string) string { return i18n.T(lang, k) }
-	v := statusView{ID: rec.ID, State: string(rec.Status)}
+	v := statusView{ID: rec.ID, State: string(rec.Status), Heading: t("status.typing")}
 	switch rec.Status {
 	case store.Dispatched, store.Running:
 		v.Polling = true
 		v.Line = t("status.reading")
+		if rec.Kind == store.KindTranslate {
+			v.Heading, v.Line = t("status.translating_h"), t("status.translating")
+		}
 		for i := len(rec.Trace) - 1; i >= 0; i-- {
 			switch rec.Trace[i].Kind {
 			case "rejected":
@@ -199,6 +202,11 @@ type recipeView struct {
 	Others                                   []dishOption // owner: move targets
 	Label                                    string
 	LabelMax                                 int
+	// Translation (ADRs 0014, 0015). Query is "?lang=xx" when the card
+	// shows an Overlay, for its print and download links.
+	Query, Translated, InLang, TranslateTo, TranslateErr string
+	CanTranslate, HasTranslation                         bool
+	Translating                                          *statusView
 }
 
 // cardDish is the card's place in its Dish, and its marks (ADR 0017).
@@ -230,13 +238,25 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 			rec = upd
 		}
 		cancel()
+		lang := s.lang(r)
 		rc := rec.Recipe
+		opt := card.Options{ID: rec.ID, Views: rec.Views, Pasted: rec.WasPasted}
+		if ov := rec.Translations[lang]; ov != nil {
+			if r.URL.Query().Get("orig") == "1" {
+				v.HasTranslation = true
+			} else {
+				rc = rec.Recipe.Apply(ov)
+				opt.From = ov.From
+				v.Query = "?lang=" + lang
+				v.Translated = i18n.LangName(lang, ov.From)
+			}
+		}
+		s.translationState(r, rec, &v)
 		v.Ready, v.MayNotFit = true, rec.MayNotFit
 		v.Title, v.Slug, v.SourceURL = rc.Title, slug(rc.Title), rec.SourceURL
-		opt := card.Options{ID: rec.ID, Views: rec.Views, Pasted: rec.WasPasted}
 		v.Dish = s.cardDish(r, rec, &opt)
 		v.SVG = template.HTML(card.SVG(rc, opt))
-		v.Label, v.LabelMax = rc.Label, recipe.MaxLabelLen
+		v.Label, v.LabelMax = rec.Recipe.Label, recipe.MaxLabelLen
 		for _, a := range rec.AlsoAt {
 			v.AlsoAt = append(v.AlsoAt, alsoRow{URL: a.URL, Domain: card.Domain(a.URL), Record: a.Record})
 		}
@@ -248,6 +268,9 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 			v.Others = s.dishOptions(r.Context(), s.lang(r), except)
 		}
 		v.Credit = card.CreditLine(rc, rec.WasPasted)
+		if opt.From != "" {
+			v.Credit += " · " + i18n.T(rc.Lang, "card.translated", i18n.LangName(rc.Lang, opt.From))
+		}
 		var meta []string
 		if rc.Servings != "" {
 			meta = append(meta, i18n.T(rc.Lang, "card.serves", rc.Servings))
@@ -269,6 +292,33 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "recipe", http.StatusOK, v)
 }
 
+// translationState fills the Translate button, a translation in flight
+// and a failed one, for the visitor's language.
+func (s *Server) translationState(r *http.Request, rec *store.Record, v *recipeView) {
+	lang := s.lang(r)
+	v.TranslateTo = lang
+	v.InLang = i18n.LangName(lang, rec.Recipe.Lang)
+	v.CanTranslate = tabulate.Translatable(rec, lang)
+	if r.URL.Query().Get("terr") == "cap" {
+		v.TranslateErr = s.t(r, "recipe.translate_cap")
+	}
+	jobID := rec.Translating[lang]
+	if !v.CanTranslate || jobID == "" {
+		return
+	}
+	job, err := s.cfg.Store.Get(r.Context(), jobID)
+	if err != nil {
+		return
+	}
+	switch job.Status {
+	case store.Dispatched, store.Running:
+		st := statusOf(job, lang)
+		v.Translating, v.CanTranslate = &st, false
+	case store.Failed:
+		v.TranslateErr = s.t(r, "recipe.translate_failed", job.FailReason)
+	}
+}
+
 // cardDish places a card in its Dish and, when the visit asks for marks
 // (?marks=1, the Dish page's links), sets them on opt.
 func (s *Server) cardDish(r *http.Request, rec *store.Record, opt *card.Options) *cardDish {
@@ -280,19 +330,20 @@ func (s *Server) cardDish(r *http.Request, rec *store.Record, opt *card.Options)
 		return nil
 	}
 	lang := s.lang(r)
-	cd := &cardDish{ID: d.ID, N: rec.Variant, Count: len(vs), Label: rec.Recipe.Label, Reference: ref.ID == rec.ID}
+	rc, refRc := s.shown(rec, lang), s.shown(ref, lang)
+	cd := &cardDish{ID: d.ID, N: rec.Variant, Count: len(vs), Label: rc.Label, Reference: ref.ID == rec.ID}
 	cd.Name, cd.NameLang = d.Name(lang, refLang(ref))
 	if cd.NameLang == lang {
 		cd.NameLang = ""
 	}
-	if rec.Recipe.Lang != lang {
-		cd.LabelLang = rec.Recipe.Lang
+	if rc.Lang != lang {
+		cd.LabelLang = rc.Lang
 	}
 	cd.RefN = ref.Variant
 	cd.CanMark = !cd.Reference && len(vs) > 1
 	if cd.CanMark && r.URL.Query().Get("marks") == "1" {
 		cd.Marked = true
-		diff := dishcmp.Compare(ref.Recipe, rec.Recipe)
+		diff := dishcmp.Compare(refRc, rc)
 		opt.Marks, cd.Missing = marks(diff, lang)
 	}
 	return cd
@@ -323,8 +374,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 // cardETag changes when the drawing would: the recipe, the fit flag and
 // whether the card has earned its well-used stain.
-func cardETag(rec *store.Record, print bool) string {
-	b, _ := json.Marshal(rec.Recipe)
+func cardETag(rec *store.Record, rc *recipe.Recipe, print bool) string {
+	b, _ := json.Marshal(rc)
 	h := sha256.New()
 	h.Write(b)
 	fmt.Fprintf(h, "|%v|%v|%v|%v", rec.MayNotFit, rec.Views >= card.WellUsedViews, print, rec.WasPasted)
@@ -348,7 +399,8 @@ func (s *Server) handleSVG(w http.ResponseWriter, r *http.Request) {
 	if rec == nil {
 		return
 	}
-	tag := cardETag(rec, false)
+	rc, from := queryRecipe(r, rec)
+	tag := cardETag(rec, rc, false)
 	w.Header().Set("ETag", tag)
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	if r.Header.Get("If-None-Match") == tag {
@@ -357,7 +409,7 @@ func (s *Server) handleSVG(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
-	w.Write(card.SVG(rec.Recipe, card.Options{ID: rec.ID, Views: rec.Views, Pasted: rec.WasPasted}))
+	w.Write(card.SVG(rc, card.Options{ID: rec.ID, Views: rec.Views, Pasted: rec.WasPasted, From: from}))
 }
 
 type printView struct {
@@ -372,13 +424,15 @@ func (s *Server) handlePrint(w http.ResponseWriter, r *http.Request) {
 	if rec == nil {
 		return
 	}
+	rc, from := queryRecipe(r, rec)
 	opt := s.printOptions(r, rec)
-	fit := card.FitWith(rec.Recipe, opt)
+	opt.From = from
+	fit := card.FitWith(rc, opt)
 	v := printView{
-		ID: rec.ID, Title: rec.Recipe.Title, Orientation: "portrait",
+		ID: rec.ID, Title: rc.Title, Orientation: "portrait",
 		WidthPt: fmt.Sprintf("%.1f", fit.Width), HeightPt: fmt.Sprintf("%.1f", fit.Height),
 		Small: rec.MayNotFit || !fit.OK,
-		SVG:   template.HTML(card.SVG(rec.Recipe, opt)),
+		SVG:   template.HTML(card.SVG(rc, opt)),
 	}
 	if fit.Landscape {
 		v.Orientation = "landscape"

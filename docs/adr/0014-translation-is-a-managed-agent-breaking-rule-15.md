@@ -44,3 +44,7 @@ per (card, language) through the same Claim as filing.
 - Monthly cost of the break: none beyond tokens. Sessions bill by use and
   nothing stays warm (rules 6–8 untouched).
 - A stuck translation is repaired exactly like a stuck tabulation.
+- The Translate button is offered when the visitor's language (always a
+  catalog language) differs from the card's and no Overlay exists yet. A
+  failed translation shows its reason and the button again; the Claim
+  ignores failed jobs.

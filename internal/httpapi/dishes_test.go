@@ -241,3 +241,70 @@ func TestPrintFurniture(t *testing.T) {
 		t.Error("the download should have no QR")
 	}
 }
+
+func TestTranslatePage(t *testing.T) {
+	s := newServer(t)
+	ctx := context.Background()
+	id := fileVariant(t, s, "d1", bran(t), "https://a.example/bran")
+	visitor := &http.Cookie{Name: "lang", Value: "es"}
+	_, page := get(t, s, "/recipes/"+id, visitor)
+	if !strings.Contains(page, "Traducir al español") || !strings.Contains(page, "Esta ficha está en inglés.") {
+		t.Fatal("a Spanish visitor is offered a translation")
+	}
+	if _, en := get(t, s, "/recipes/"+id); strings.Contains(en, "/translate") {
+		t.Error("no translation offered in the card's own language")
+	}
+	translate := func() *http.Response {
+		req := httptest.NewRequest("POST", "/recipes/"+id+"/translate", strings.NewReader("to=es"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Origin", "http://example.com")
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		return w.Result()
+	}
+	if res := translate(); res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/recipes/"+id+"?lang=es" {
+		t.Fatalf("translate: %d %s", res.StatusCode, res.Header.Get("Location"))
+	}
+	translate() // a double click
+	c, _ := s.cfg.Store.Get(ctx, id)
+	jobID := c.Translating["es"]
+	if jobID == "" {
+		t.Fatal("no job noted on the card")
+	}
+	if used, _ := s.cfg.Store.Count(ctx, "runs:"+time.Now().UTC().Format("2006-01-02")); used != 1 {
+		t.Errorf("a double click should cost one run, used %d", used)
+	}
+	if _, p := get(t, s, "/recipes/"+id+"?lang=es"); !strings.Contains(p, "El Abuelo está traduciendo esta ficha") || !strings.Contains(p, "/recipes/"+jobID+"/status") {
+		t.Error("the card page should poll the translation")
+	}
+	// The translator's Overlay arrives.
+	r := c.Recipe
+	o := &recipe.Overlay{Lang: "es", Title: "Muffins de salvado", Label: "un bol", Dish: "Muffins de salvado", From: "en", Servings: r.Servings, Time: r.Time}
+	for _, in := range r.Ingredients {
+		o.Ingredients = append(o.Ingredients, recipe.IngredientWords{ID: in.ID, Qty: in.Qty, Unit: in.Unit, Item: "es-" + in.Item})
+	}
+	for _, st := range r.Steps {
+		o.Steps = append(o.Steps, recipe.StepWords{ID: st.ID, Text: "batí"})
+	}
+	o.Notes = make([]string, len(r.Notes))
+	s.cfg.Store.Update(ctx, id, func(x *store.Record) error {
+		x.Translations = map[string]*recipe.Overlay{"es": o}
+		delete(x.Translating, "es")
+		return nil
+	})
+	_, p := get(t, s, "/recipes/"+id, visitor)
+	if !strings.Contains(p, "<title>Muffins de salvado — recipes</title>") || !strings.Contains(p, "Traducida del inglés.") || !strings.Contains(p, `/print?lang=es`) {
+		t.Error("the Spanish visitor sees the translation")
+	}
+	if _, orig := get(t, s, "/recipes/"+id+"?orig=1", visitor); !strings.Contains(orig, "Ver la traducción") || strings.Contains(orig, "<title>Muffins de salvado") {
+		t.Error("?orig=1 shows the original")
+	}
+	if _, en := get(t, s, "/recipes/"+id); strings.Contains(en, "Muffins de salvado") {
+		t.Error("an English visitor sees the original")
+	}
+	_, svgEs := get(t, s, "/recipes/"+id+"/card.svg?lang=es")
+	_, svgEn := get(t, s, "/recipes/"+id+"/card.svg")
+	if svgEs == svgEn {
+		t.Error("the download follows ?lang=")
+	}
+}

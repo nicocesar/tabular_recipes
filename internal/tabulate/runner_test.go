@@ -298,3 +298,86 @@ func TestBackfill(t *testing.T) {
 		t.Fatal("nothing should be left to backfill")
 	}
 }
+
+// overlayOf is pancakes.json in Spanish words, with edit applied.
+func overlayOf(t *testing.T, edit func(o *recipe.Overlay)) func() Event {
+	b, _ := os.ReadFile("../recipe/testdata/pancakes.json")
+	var r recipe.Recipe
+	json.Unmarshal(b, &r)
+	o := recipe.Overlay{Lang: "es", Title: "Panqueques", Servings: r.Servings, Time: r.Time, Label: "esponjosos", Dish: "Panqueques"}
+	for _, in := range r.Ingredients {
+		o.Ingredients = append(o.Ingredients, recipe.IngredientWords{ID: in.ID, Qty: in.Qty, Unit: in.Unit, Item: "es " + in.Item})
+	}
+	for _, s := range r.Steps {
+		o.Steps = append(o.Steps, recipe.StepWords{ID: s.ID, Text: "batí " + s.ID})
+	}
+	for range r.Notes {
+		o.Notes = append(o.Notes, "nota")
+	}
+	if edit != nil {
+		edit(&o)
+	}
+	in, _ := json.Marshal(o)
+	return func() Event { return Event{Type: "agent.custom_tool_use", Name: "submit_translation", Input: in} }
+}
+
+func TestTranslation(t *testing.T) {
+	ctx := context.Background()
+	rn, cardID := setup(t, &fakeAPI{})
+	b, _ := os.ReadFile("../recipe/testdata/pancakes.json")
+	var r recipe.Recipe
+	json.Unmarshal(b, &r)
+	d := &store.Dish{ID: "d1", Names: map[string]string{"en": "Pancakes"}}
+	rn.Store.CreateDish(ctx, d)
+	rn.Store.UpdateDish(ctx, "d1", func(x *store.Dish) error { x.Add(cardID); return nil })
+	rn.Store.Update(ctx, cardID, func(x *store.Record) error {
+		x.Status, x.Recipe, x.DishID, x.Variant = store.Ready, &r, "d1", 1
+		return nil
+	})
+	f := &fakeAPI{script: []func() Event{
+		overlayOf(t, func(o *recipe.Overlay) { o.Steps = o.Steps[1:] }), // a step missing
+		overlayOf(t, nil),
+	}}
+	rn.API = f
+	var sent string
+	card, _ := rn.Store.Get(ctx, cardID)
+	if !Translatable(card, "es") || Translatable(card, "en") || Translatable(card, "xx") {
+		t.Fatal("translatable into es only")
+	}
+	job := NewTranslation(cardID, "es")
+	rn.Store.Create(ctx, job)
+	rn.Started(ctx, job)
+	if err := rn.Run(ctx, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range f.events {
+		if e.Type == "user.message" {
+			sent = e.Text
+			break
+		}
+	}
+	if !strings.Contains(sent, `(lang "es")`) || !strings.Contains(sent, "<card>") || !strings.Contains(sent, `"Pancakes"`) {
+		t.Errorf("first message: %s", sent)
+	}
+	j, _ := rn.Store.Get(ctx, job.ID)
+	if j.Status != store.Ready || j.Meters.RejectSchema != 1 || !strings.Contains(f.results[0], "is missing") {
+		t.Fatalf("job %s, rejections %d, results %q", j.Status, j.Meters.RejectSchema, f.results)
+	}
+	c, _ := rn.Store.Get(ctx, cardID)
+	o := c.Translations["es"]
+	if o == nil || o.From != "en" || o.Model != TranslatorModel || len(c.Translating) != 0 {
+		t.Fatalf("overlay not saved: %+v", c)
+	}
+	if got := c.Recipe.Apply(o); got.Title != "Panqueques" || got.Lang != "es" || got.Steps[0].Inputs[0] != r.Steps[0].Inputs[0] {
+		t.Errorf("applied: %+v", got)
+	}
+	if c.Recipe.Title != r.Title {
+		t.Error("the original must not change")
+	}
+	if dd, _ := rn.Store.GetDish(ctx, "d1"); dd.Names["es"] != "Panqueques" || dd.Names["en"] != "Pancakes" {
+		t.Errorf("dish names %v", dd.Names)
+	}
+	if Translatable(c, "es") {
+		t.Error("translated once is enough")
+	}
+}

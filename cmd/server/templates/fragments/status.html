@@ -6,11 +6,11 @@
 {{define "status"}}
 <div id="status" class="status status-{{.State}}" {{if .Polling}}hx-get="/recipes/{{.ID}}/status" hx-trigger="every 3s" hx-swap="outerHTML"{{end}}>
   {{if .Polling}}
-  <p class="typing" aria-live="polite">{{t "status.typing"}}<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+  <p class="typing" aria-live="polite">{{.Heading}}<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
   <p class="quiet">{{.Line}}</p>
   <p class="quiet">{{t "status.usually"}}</p>
   <noscript><p><a href="/recipes/{{.ID}}">{{t "status.check"}}</a></p></noscript>
-  {{else}}
+  {{else if eq .State "failed"}}
   <p class="failed">{{t "status.failed"}}</p>
   <p>{{.Line}}</p>
   {{if .Hint}}<p class="quiet">{{.Hint}}</p>{{end}}

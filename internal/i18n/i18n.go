@@ -104,3 +104,15 @@ func Match(accept string) string {
 	}
 	return ""
 }
+
+// LangName is a language's name written in lang ("inglés"), or its code
+// in capitals when the catalog has no name for it.
+func LangName(lang, code string) string {
+	if code == "" {
+		code = "en"
+	}
+	if n := T(lang, "langname."+code); n != "langname."+code {
+		return n
+	}
+	return strings.ToUpper(code)
+}

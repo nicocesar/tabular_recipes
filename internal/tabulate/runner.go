@@ -42,7 +42,9 @@ type Runner struct {
 	WorkURL   string
 	TickToken string
 	AgentID   string
-	EnvID     string
+	// TranslatorID is the translator agent (ADR 0014).
+	TranslatorID string
+	EnvID        string
 	// Console builds the trace link to a session, when known.
 	ConsoleWorkspace string
 	HTTP             *http.Client
@@ -57,11 +59,15 @@ func (rn *Runner) Boot(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ensure agent: %w", err)
 	}
+	tid, err := rn.API.EnsureAgent(ctx, TranslatorSpec())
+	if err != nil {
+		return fmt.Errorf("ensure translator: %w", err)
+	}
 	env, err := rn.API.EnsureEnvironment(ctx, EnvName)
 	if err != nil {
 		return fmt.Errorf("ensure environment: %w", err)
 	}
-	rn.AgentID, rn.EnvID = id, env
+	rn.AgentID, rn.TranslatorID, rn.EnvID = id, tid, env
 	return nil
 }
 
@@ -137,7 +143,11 @@ func (rn *Runner) Run(ctx context.Context, id string) error {
 		return rn.fail(id, "config", "ANTHROPIC_API_KEY is not set on the server")
 	}
 	if rec.SessionID == "" {
-		sid, err := rn.API.CreateSession(ctx, rn.AgentID, rn.EnvID, "recipe "+id, SessionBudgetCents)
+		agent, title := rn.AgentID, "recipe "+id
+		if rec.Kind == store.KindTranslate {
+			agent, title = rn.TranslatorID, "translate "+rec.Parent+" to "+rec.To
+		}
+		sid, err := rn.API.CreateSession(ctx, agent, rn.EnvID, title, SessionBudgetCents)
 		if err != nil {
 			return rn.fail(id, "vendor", "could not create session: "+err.Error())
 		}
@@ -172,8 +182,11 @@ func (rn *Runner) consoleSuffix(sid string) string {
 }
 
 func (rn *Runner) firstMessage(ctx context.Context, r *store.Record) (string, error) {
-	if r.Kind == store.KindBackfill {
+	switch r.Kind {
+	case store.KindBackfill:
 		return rn.backfillMessage(ctx, r)
+	case store.KindTranslate:
+		return rn.translateMessage(ctx, r)
 	}
 	return sourceMessage(r) + "\n\n" + rn.dishList(ctx), nil
 }
@@ -262,6 +275,11 @@ func (rn *Runner) react(ctx context.Context, id, sid string, evs []Event) (bool,
 			if err != nil || done {
 				return done, err
 			}
+		case "submit_translation":
+			done, err := rn.submitTranslation(ctx, id, sid, e)
+			if err != nil || done {
+				return done, err
+			}
 		case "report_failure":
 			var in struct{ Kind, Reason string }
 			json.Unmarshal(e.Input, &in)
@@ -300,7 +318,11 @@ func (rn *Runner) react(ctx context.Context, id, sid string, evs []Event) (bool,
 			r.Log("nudge", "the agent ended its turn without submitting; asked it to call a tool")
 			return nil
 		})
-		err := rn.API.SendMessage(ctx, sid, "You ended your turn without calling a tool. Call submit_recipe with the tree, or report_failure if you cannot produce a faithful recipe.")
+		msg := "You ended your turn without calling a tool. Call submit_recipe with the tree, or report_failure if you cannot produce a faithful recipe."
+		if rec.Kind == store.KindTranslate {
+			msg = "You ended your turn without calling a tool. Call submit_translation with the translated card."
+		}
+		err := rn.API.SendMessage(ctx, sid, msg)
 		return false, err
 	}
 	return true, rn.fail(id, "no_submission", "the agent ended without submitting or reporting a failure")
