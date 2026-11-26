@@ -2,8 +2,9 @@
 // workbench, and the service's own /work and /tick routes. Every route
 // declares which credential admits it (rule 21, ADR 0009):
 //
-//	public      GET /, /recipes/{id}…, /healthz, /version, /static/…; POST /recipes
-//	owner       POST /recipes/{id}/retry|delete, GET /admin…
+//	public      GET /, /recipes/{id}…, /dishes/{id}, /healthz, /version, /static/…; POST /recipes, /lang
+//	owner       POST /recipes/{id}/retry|delete|move|label|unfold, /dishes/{id}/reference|name|merge,
+//	            /admin/backfill; GET /admin…
 //	TICK_TOKEN  POST /work/{id}, POST /tick
 package httpapi
 
@@ -49,7 +50,7 @@ type Server struct {
 	pages map[string]map[string]*template.Template
 }
 
-var pageNames = []string{"home", "recipe", "login", "admin", "admin_recipe", "notfound"}
+var pageNames = []string{"home", "recipe", "dish", "login", "admin", "admin_recipe", "notfound"}
 
 // New parses every template up front, once per language: a broken
 // template fails boot, never a request (web-layout.md).
@@ -135,6 +136,13 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /recipes/{id}/print", s.handlePrint)
 	m.HandleFunc("POST /recipes/{id}/retry", s.owner(s.handleRetry))
 	m.HandleFunc("POST /recipes/{id}/delete", s.owner(s.handleDelete))
+	m.HandleFunc("POST /recipes/{id}/move", s.owner(s.handleMove))
+	m.HandleFunc("POST /recipes/{id}/label", s.owner(s.handleLabel))
+	m.HandleFunc("POST /recipes/{id}/unfold", s.owner(s.handleUnfold))
+	m.HandleFunc("GET /dishes/{id}", s.handleDish)
+	m.HandleFunc("POST /dishes/{id}/reference", s.owner(s.handlePromote))
+	m.HandleFunc("POST /dishes/{id}/name", s.owner(s.handleDishName))
+	m.HandleFunc("POST /dishes/{id}/merge", s.owner(s.handleMerge))
 
 	m.HandleFunc("POST /lang", s.handleLang)
 
@@ -202,9 +210,19 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 // ---- The chest ----
 
+// cardRow is one tab in the chest: a Dish with its Labels, or a card on
+// its own (a one-card Dish, a card from before Dishes, or, for the
+// Owner, one in flight or failed).
 type cardRow struct {
-	ID, Title, Domain, Date, Badge, BadgeText string
-	at                                        time.Time
+	Href, Title, Domain, Date, Badge, BadgeText, Count string
+	Labels                                             []labelRow
+	More                                               string
+	at                                                 time.Time
+}
+
+type labelRow struct {
+	N          int
+	Text, Lang string // Lang only when not the visitor's
 }
 
 type homeView struct {
@@ -213,16 +231,32 @@ type homeView struct {
 	Cards                      []cardRow
 }
 
+// homeLabels is how many Labels a Dish shows on the home page (ADR 0017).
+const homeLabels = 3
+
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	s.home(w, r, http.StatusOK, homeView{})
 }
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v homeView) {
 	ctx := r.Context()
-	owner := s.isOwner(r)
+	lang := s.lang(r)
 	statuses := []store.Status{store.Ready}
-	if owner {
+	if s.isOwner(r) {
 		statuses = append(statuses, store.Dispatched, store.Running, store.Failed)
+	}
+	ready := map[string]*store.Record{}
+	cardRowOf := func(rec *store.Record) cardRow {
+		row := cardRow{Href: "/recipes/" + rec.ID, Domain: card.Domain(rec.SourceURL), at: rec.CreatedAt, Date: i18n.Date(lang, rec.CreatedAt)}
+		if rec.Recipe != nil {
+			row.Title = rec.Recipe.Title
+		} else {
+			row.Title = firstNonEmpty(rec.SourceURL, rec.PastedSource, "pasted recipe")
+		}
+		if rec.Status != store.Ready {
+			row.Badge, row.BadgeText = string(rec.Status), s.t(r, "badge."+string(rec.Status))
+		}
+		return row
 	}
 	for _, st := range statuses {
 		recs, err := s.cfg.Store.ByStatus(ctx, st)
@@ -231,19 +265,60 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v home
 			continue
 		}
 		for _, rec := range recs {
-			row := cardRow{ID: rec.ID, Domain: card.Domain(rec.SourceURL), at: rec.CreatedAt, Date: i18n.Date(s.lang(r), rec.CreatedAt)}
 			if rec.Kind != store.KindCard {
 				continue // jobs live on the workbench
 			}
-			if rec.Recipe != nil {
-				row.Title = rec.Recipe.Title
-			} else {
-				row.Title = firstNonEmpty(rec.SourceURL, rec.PastedSource, "pasted recipe")
+			if st == store.Ready && rec.DishID != "" && rec.Recipe != nil {
+				ready[rec.ID] = rec
+				continue
 			}
-			if st != store.Ready {
-				row.Badge, row.BadgeText = string(st), s.t(r, "badge."+string(st))
+			v.Cards = append(v.Cards, cardRowOf(rec))
+		}
+	}
+	filed := map[string]bool{}
+	if ds, err := s.cfg.Store.Dishes(ctx); err != nil {
+		log.Printf("home: dishes: %v", err)
+	} else {
+		for _, d := range ds {
+			var vs []variant
+			var ref *store.Record
+			for _, dv := range d.Variants {
+				if rec := ready[dv.Record]; rec != nil {
+					vs = append(vs, variant{dv.N, rec})
+					filed[rec.ID] = true
+					if rec.ID == d.Reference {
+						ref = rec
+					}
+				}
+			}
+			switch len(vs) {
+			case 0:
+				continue
+			case 1:
+				v.Cards = append(v.Cards, cardRowOf(vs[0].Rec))
+				continue
+			}
+			row := cardRow{Href: "/dishes/" + d.ID, Count: i18n.T(lang, "home.variants", len(vs))}
+			row.Title, _ = d.Name(lang, refLang(ref))
+			for i, x := range vs {
+				row.at = later(row.at, x.Rec.CreatedAt)
+				if i < homeLabels {
+					l := labelRow{N: x.N, Text: x.Rec.Recipe.Label}
+					if x.Rec.Recipe.Lang != lang {
+						l.Lang = x.Rec.Recipe.Lang
+					}
+					row.Labels = append(row.Labels, l)
+				}
+			}
+			if n := len(vs) - homeLabels; n > 0 {
+				row.More = i18n.T(lang, "home.more", n)
 			}
 			v.Cards = append(v.Cards, row)
+		}
+	}
+	for id, rec := range ready { // a Dish that lost track of its card
+		if !filed[id] {
+			v.Cards = append(v.Cards, cardRowOf(rec))
 		}
 	}
 	sort.Slice(v.Cards, func(a, b int) bool { return v.Cards[a].at.After(v.Cards[b].at) })
@@ -251,6 +326,13 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request, status int, v home
 	v.Cap = tabulate.DailyRuns
 	v.Left = max(v.Cap-used, 0)
 	s.render(w, r, "home", status, v)
+}
+
+func later(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+	return a
 }
 
 func firstNonEmpty(ss ...string) string {

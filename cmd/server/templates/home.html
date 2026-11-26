@@ -1,6 +1,8 @@
 {{/* home: the Chest. The "file a new recipe" slot (plain form → POST →
-     303, works without JS) and every Ready card, newest first. Owners also
-     see in-flight and failed records, badged. */}}
+     303, works without JS) and every Dish, newest first: a Dish of several
+     Variants shows up to three Labels and links to its Dish page; a
+     one-card Dish links straight to its card (ADR 0017). Owners also see
+     in-flight and failed records, badged. */}}
 {{define "title"}}{{t "home.title"}}{{end}}
 {{define "content"}}
 <section class="slot">
@@ -29,9 +31,14 @@
   <ol class="tabs">
   {{range .Cards}}
     <li class="tab">
-      <a href="/recipes/{{.ID}}">
+      <a href="{{.Href}}">
         <span class="t">{{.Title}}</span>
+        {{if .Labels}}
+        <span class="from">{{.Count}}</span>
+        <span class="labels">{{range .Labels}}<span class="vl"><span class="n">{{.N}}.</span> {{.Text}}{{if .Lang}} <span class="langtag">{{.Lang}}</span>{{end}}</span>{{end}}{{if .More}}<span class="vl quiet">{{.More}}</span>{{end}}</span>
+        {{else}}
         <span class="from">{{if .Domain}}{{t "home.from" .Domain .Date}}{{else}}{{t "home.pasted" .Date}}{{end}}</span>
+        {{end}}
         {{if .Badge}}<span class="badge badge-{{.Badge}}">{{.BadgeText}}</span>{{end}}
       </a>
     </li>

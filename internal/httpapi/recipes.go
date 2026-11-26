@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/nicocesar/tabular_recipes/internal/card"
+	dishcmp "github.com/nicocesar/tabular_recipes/internal/dish"
 	"github.com/nicocesar/tabular_recipes/internal/i18n"
 	"github.com/nicocesar/tabular_recipes/internal/recipe"
 	"github.com/nicocesar/tabular_recipes/internal/store"
@@ -193,7 +194,24 @@ type recipeView struct {
 	Ingredients, Steps, Notes                []string
 	Ready, Failed, Owner, MayNotFit          bool
 	Status                                   statusView
+	Dish                                     *cardDish
+	AlsoAt                                   []alsoRow
+	Others                                   []dishOption // owner: move targets
+	Label                                    string
+	LabelMax                                 int
 }
+
+// cardDish is the card's place in its Dish, and its marks (ADR 0017).
+type cardDish struct {
+	ID, Name, NameLang, Label, LabelLang string
+	N, Count, RefN                       int
+	Reference                            bool
+	// Marks: CanMark when there is a Reference to mark against.
+	CanMark, Marked bool
+	Missing         []string
+}
+
+type alsoRow struct{ URL, Domain, Record string }
 
 func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 	rec := s.record(w, r)
@@ -215,7 +233,20 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 		rc := rec.Recipe
 		v.Ready, v.MayNotFit = true, rec.MayNotFit
 		v.Title, v.Slug, v.SourceURL = rc.Title, slug(rc.Title), rec.SourceURL
-		v.SVG = template.HTML(card.SVG(rc, card.Options{ID: rec.ID, Views: rec.Views, Pasted: rec.WasPasted}))
+		opt := card.Options{ID: rec.ID, Views: rec.Views, Pasted: rec.WasPasted}
+		v.Dish = s.cardDish(r, rec, &opt)
+		v.SVG = template.HTML(card.SVG(rc, opt))
+		v.Label, v.LabelMax = rc.Label, recipe.MaxLabelLen
+		for _, a := range rec.AlsoAt {
+			v.AlsoAt = append(v.AlsoAt, alsoRow{URL: a.URL, Domain: card.Domain(a.URL), Record: a.Record})
+		}
+		if v.Owner {
+			except := ""
+			if v.Dish != nil {
+				except = v.Dish.ID
+			}
+			v.Others = s.dishOptions(r.Context(), s.lang(r), except)
+		}
 		v.Credit = card.CreditLine(rc, rec.WasPasted)
 		var meta []string
 		if rc.Servings != "" {
@@ -236,6 +267,35 @@ func (s *Server) handleRecipe(w http.ResponseWriter, r *http.Request) {
 		v.Title = s.t(r, "recipe.failed_title")
 	}
 	s.render(w, r, "recipe", http.StatusOK, v)
+}
+
+// cardDish places a card in its Dish and, when the visit asks for marks
+// (?marks=1, the Dish page's links), sets them on opt.
+func (s *Server) cardDish(r *http.Request, rec *store.Record, opt *card.Options) *cardDish {
+	if rec.DishID == "" {
+		return nil
+	}
+	d, vs, ref, err := s.loadDish(r.Context(), rec.DishID)
+	if err != nil || ref == nil {
+		return nil
+	}
+	lang := s.lang(r)
+	cd := &cardDish{ID: d.ID, N: rec.Variant, Count: len(vs), Label: rec.Recipe.Label, Reference: ref.ID == rec.ID}
+	cd.Name, cd.NameLang = d.Name(lang, refLang(ref))
+	if cd.NameLang == lang {
+		cd.NameLang = ""
+	}
+	if rec.Recipe.Lang != lang {
+		cd.LabelLang = rec.Recipe.Lang
+	}
+	cd.RefN = ref.Variant
+	cd.CanMark = !cd.Reference && len(vs) > 1
+	if cd.CanMark && r.URL.Query().Get("marks") == "1" {
+		cd.Marked = true
+		diff := dishcmp.Compare(ref.Recipe, rec.Recipe)
+		opt.Marks, cd.Missing = marks(diff, lang)
+	}
+	return cd
 }
 
 // handleStatus is the htmx poll: the status fragment, or HX-Refresh once

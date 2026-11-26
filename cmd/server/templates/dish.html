@@ -1,0 +1,45 @@
+{{/* dish: one Dish and its Variants (ADR 0017). Each Variant shows its
+     Label, where it is from, and chips the server computes against the
+     Reference: added, changed, and missing (red, not struck through).
+     Links open the card with its marks (?marks=1). Owners get promote,
+     rename per language and merge. */}}
+{{define "title"}}{{t "dish.title" .Name}}{{end}}
+{{define "content"}}
+<section class="dishpage">
+  <h1>{{.Name}}{{if .NameLang}} <span class="langtag">{{.NameLang}}</span>{{end}}</h1>
+  <p class="quiet">{{.Sub}}</p>
+  <ol class="variants">
+  {{range .Variants}}
+    <li class="variant{{if .Reference}} ref{{end}}">
+      <a href="/recipes/{{.ID}}{{if not .Reference}}?marks=1{{end}}" class="vhead">
+        <span class="n">{{t "dish.variant" .N}}{{if .Reference}} · {{t "dish.reference"}}{{end}}</span>
+        <span class="label">{{.Label}}{{if .LabelLang}} <span class="langtag">{{.LabelLang}}</span>{{end}}</span>
+      </a>
+      <span class="from">{{.From}} · {{.Facts}}{{if .Copies}} · {{.Copies}}{{end}}</span>
+      {{if .Chips}}<span class="chips">{{range .Chips}}<span class="chip {{.Kind}}">{{.Text}}</span>{{end}}<span class="chip fact">{{.Same}}</span></span>
+      {{else if not .Reference}}<span class="chips"><span class="chip fact">{{.Same}}</span></span>{{end}}
+      {{if $.Owner}}{{if not .Reference}}
+      <form method="post" action="/dishes/{{$.ID}}/reference" class="inline owneronly"><input type="hidden" name="record" value="{{.ID}}"><button class="link">make this the reference</button></form>
+      {{end}}{{end}}
+    </li>
+  {{end}}
+  </ol>
+  {{if .Owner}}
+  <div class="ownertools column">
+    <form method="post" action="/dishes/{{.ID}}/name" class="row">
+      <label for="dn-lang">Name in</label>
+      <select id="dn-lang" name="lang">{{range .Names}}<option value="{{.Lang}}">{{.LangName}}{{if .Name}}: {{.Name}}{{end}}</option>{{end}}</select>
+      <input type="text" name="name" maxlength="60" placeholder="empty removes it" aria-label="Dish name">
+      <button>Rename</button>
+    </form>
+    {{if .Others}}
+    <form method="post" action="/dishes/{{.ID}}/merge" class="row" onsubmit="return confirm('Merge every variant of this dish into the other one? They take new numbers there.')">
+      <label for="merge-into">Merge into</label>
+      <select id="merge-into" name="into">{{range .Others}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select>
+      <button class="danger">Merge</button>
+    </form>
+    {{end}}
+  </div>
+  {{end}}
+</section>
+{{end}}

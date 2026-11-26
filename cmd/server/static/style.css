@@ -150,3 +150,41 @@ table th { font-weight: normal; color: var(--pencil); }
   .slot, .bench, .pending { padding: 16px; }
   .t { font-size: 18px; }
 }
+
+/* Dishes and Variants (ADR 0017). Green is new, amber is changed, red is
+   missing; nothing is struck through. */
+:root { --add: #3F7040; --add-bg: rgba(63,112,64,.14); --chg: #9A6516; --chg-bg: rgba(185,130,46,.18); --del: #A2402F; }
+@media (prefers-color-scheme: dark) {
+  :root { --add: #8CC08A; --add-bg: rgba(140,192,138,.14); --chg: #E3B45A; --chg-bg: rgba(227,180,90,.16); --del: #E58A73; }
+}
+.labels { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 15px; }
+.vl .n, .variant .n { font: 13px var(--mono); color: var(--pencil); }
+.langtag { font: 11px var(--mono); text-transform: uppercase; color: var(--pencil); border: 1px solid currentColor; border-radius: 2px; padding: 0 3px; vertical-align: 1px; }
+.dishpage h1 { margin-top: 12px; }
+.variants { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 12px; }
+.variant { background: var(--card); border-radius: 4px; padding: 12px 16px; display: grid; gap: 6px; box-shadow: 0 4px 12px var(--shadow); border-left: 3px solid transparent; }
+.variant.ref { border-left-color: var(--red); }
+.vhead { display: grid; gap: 0; color: var(--ink); text-decoration: none; }
+.vhead .label { font: 19px var(--type); }
+.vhead:hover .label, .vhead:focus .label { text-decoration: underline; text-decoration-color: var(--red); }
+.variant .from { font-style: italic; color: var(--pencil); font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 14px; padding: 1px 8px; border-radius: 3px; }
+.chip.add { background: var(--add-bg); color: var(--add); }
+.chip.chg { background: var(--chg-bg); color: var(--chg); }
+.chip.del { color: var(--del); }
+.chip.fact { color: var(--pencil); font: 13px var(--mono); }
+.dishline { font-family: var(--type); margin: 6px 2px 6px; }
+.marks { margin: 4px 2px 10px; font-size: 15px; }
+.marks p { margin: 0 0 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--pencil); font-size: 14px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 5px; vertical-align: -1px; }
+.legend .add::before { background: var(--add); }
+.legend .chg::before { background: var(--chg); }
+.gone .out { color: var(--del); }
+.also { font-size: 15px; margin: 6px 2px; }
+.ownertools.column { flex-direction: column; align-items: stretch; gap: 8px; }
+.ownertools .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }
+.ownertools .row input[type=text] { width: auto; flex: 1 1 12em; padding: 6px 8px; font-size: 14px; }
+.ownertools select { font: 14px var(--mono); padding: 5px; max-width: 100%; }
+.owneronly { font-size: 14px; }

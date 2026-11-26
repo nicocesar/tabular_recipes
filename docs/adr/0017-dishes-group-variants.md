@@ -60,3 +60,11 @@ does differently.
 
 - The recipe schema gains `dish`, `label`, `lang` and per-ingredient
   `canon`.
+- The Dish page is `/dishes/{id}`; a one-card Dish redirects to its card.
+  Its links open each Variant with `?marks=1`; the card page offers the
+  same switch. Marks tint the SVG's ingredient cells (green new, amber
+  changed, with "new" / "was …" after the words) and list the Reference's
+  missing ingredients above the card. The download and the print never
+  carry them.
+- Labels in other languages wait for Overlays (ADR 0015); until then a
+  Label shows in the card's language with a language tag.

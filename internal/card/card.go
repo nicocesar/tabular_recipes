@@ -37,7 +37,14 @@ type Options struct {
 	Views int
 	// Pasted credits the Card "pasted by a visitor" (ADR 0012).
 	Pasted bool
+	// Marks tint ingredient cells against the Dish's Reference (ADR
+	// 0017), keyed by ingredient id. Screen only: Print ignores them.
+	Marks map[string]Mark
 }
+
+// Mark is one ingredient's difference: Kind "add" or "chg", and the
+// words to show after it ("new", "was 1 cup cream").
+type Mark struct{ Kind, Text string }
 
 type rect struct{ x, y, w, h float64 }
 
@@ -58,6 +65,7 @@ type textBlock struct {
 type cellBox struct {
 	rect
 	step bool
+	mark string // "add", "chg" or ""
 }
 
 // sheet is a fully laid-out Card, ready to write.
@@ -133,6 +141,9 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 			ss = append(ss, prose(in.Item, faceSerif, "ink")...)
 			if n := strings.TrimSpace(in.Note); n != "" {
 				ss = append(ss, prose(", "+n, faceItalic, "pencil")...)
+			}
+			if m, ok := opt.Marks[in.ID]; ok && !opt.Print && m.Text != "" {
+				ss = append(ss, prose("· "+m.Text, faceItalic, m.Kind)...)
 			}
 			// prose drops the leading comma's attachment: glue it back.
 			spans[i] = glueComma(ss)
@@ -264,7 +275,11 @@ func buildWith(r *recipe.Recipe, opt Options, wc widths) *sheet {
 	sh.table = rect{x0, ty, tw, rowY[L.Rows]}
 	for i, c := range L.Cells {
 		box := rect{x0 + colX[c.Col], ty + rowY[c.Row], colX[c.Col+c.ColSpan] - colX[c.Col], rowY[c.Row+c.RowSpan] - rowY[c.Row]}
-		sh.cells = append(sh.cells, cellBox{rect: box, step: c.Step != nil})
+		cb := cellBox{rect: box, step: c.Step != nil}
+		if c.Ingredient != nil && !opt.Print {
+			cb.mark = opt.Marks[c.Ingredient.ID].Kind
+		}
+		sh.cells = append(sh.cells, cb)
 		n := float64(len(wrapped[i]))
 		textH := n * cellLead
 		first := box.y + (box.h-textH)/2 + cellLead/2 + cellSize*0.35
@@ -376,7 +391,7 @@ func Size(r *recipe.Recipe, opt Options) (w, h float64) {
 	return sh.W, sh.H
 }
 
-const screenStyle = `.paper{fill:var(--card,#F2E8D0)}.ink{fill:var(--ink,#3A2E26)}.red{fill:var(--red,#B0473A)}.pencil{fill:var(--pencil,#8A8278)}.stepcell{fill:var(--step,#E8DABB)}.ingcell{fill:none}.grid{fill:none;stroke:var(--ink,#3A2E26);stroke-width:.8}.rule{stroke:var(--red,#B0473A);stroke-width:1.2}.ruled{stroke:var(--blue,#6F8FB5);stroke-width:.5;opacity:.45}.grain{opacity:var(--grain,.35)}.stain{opacity:var(--stain,1)}`
+const screenStyle = `.paper{fill:var(--card,#F2E8D0)}.ink{fill:var(--ink,#3A2E26)}.red{fill:var(--red,#B0473A)}.pencil{fill:var(--pencil,#8A8278)}.stepcell{fill:var(--step,#E8DABB)}.ingcell{fill:none}.grid{fill:none;stroke:var(--ink,#3A2E26);stroke-width:.8}.rule{stroke:var(--red,#B0473A);stroke-width:1.2}.ruled{stroke:var(--blue,#6F8FB5);stroke-width:.5;opacity:.45}.grain{opacity:var(--grain,.35)}.add{fill:var(--add,#3F7040)}.chg{fill:var(--chg,#9A6516)}.addcell{fill:var(--add-bg,rgba(63,112,64,.14))}.chgcell{fill:var(--chg-bg,rgba(185,130,46,.18))}.stain{opacity:var(--stain,1)}`
 
 const printStyle = `.paper{fill:#fff}.ink{fill:#1d1a17}.red{fill:#1d1a17}.pencil{fill:#55504a}.stepcell{fill:#efefef}.ingcell{fill:none}.grid{fill:none;stroke:#1d1a17;stroke-width:.8}.rule{stroke:#1d1a17;stroke-width:1}`
 
@@ -400,7 +415,13 @@ func (sh *sheet) write() []byte {
 		if c.step {
 			cls = "stepcell"
 		}
+		if c.mark != "" {
+			cls = c.mark + "cell"
+		}
 		f(`<rect class="%s" x="%s" y="%s" width="%s" height="%s"/>`, cls, trim(c.x), trim(c.y), trim(c.w), trim(c.h))
+		if c.mark != "" {
+			f(`<rect class="%s" x="%s" y="%s" width="3" height="%s"/>`, c.mark, trim(c.x), trim(c.y), trim(c.h))
+		}
 	}
 	for _, c := range sh.cells {
 		f(`<rect class="grid" x="%s" y="%s" width="%s" height="%s"/>`, trim(c.x), trim(c.y), trim(c.w), trim(c.h))

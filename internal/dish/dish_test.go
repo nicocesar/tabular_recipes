@@ -72,3 +72,32 @@ func TestSlack(t *testing.T) {
 		t.Error("missing canon must not fold")
 	}
 }
+
+func TestCompare(t *testing.T) {
+	ref := load(t, "bran-cafesucrefarine.json")
+	v := load(t, "bran-cafesucrefarine.json")
+	if d := Compare(ref, v); len(d.Added)+len(d.Changed)+len(d.Missing) != 0 || d.Same != len(ref.Ingredients) {
+		t.Fatalf("identical cards differ: %+v", d)
+	}
+	gone := v.Ingredients[len(v.Ingredients)-1]
+	v.Ingredients = v.Ingredients[:len(v.Ingredients)-1]
+	v.Ingredients[0].Qty = "3"
+	v.Ingredients = append(v.Ingredients, recipe.Ingredient{ID: "x1", Qty: "1", Unit: "cup", Item: "raisins", Canon: "raisin"})
+	d := Compare(ref, v)
+	if len(d.Added) != 1 || d.Added[0].Item != "raisins" || !d.Marks["x1"].Added() {
+		t.Errorf("added: %+v", d.Added)
+	}
+	if len(d.Changed) != 1 || d.Changed[0].ItemChanged || d.Changed[0].Was.ID != ref.Ingredients[0].ID {
+		t.Errorf("changed: %+v", d.Changed)
+	}
+	if len(d.Missing) != 1 || d.Missing[0].ID != gone.ID {
+		t.Errorf("missing: %+v", d.Missing)
+	}
+	// Another language: words differ, amounts are what is compared.
+	es := load(t, "bran-cafesucrefarine.json")
+	es.Lang = "es"
+	es.Ingredients[2].Item = "algo en castellano"
+	if d := Compare(ref, es); len(d.Changed) != 0 {
+		t.Errorf("translation counted as change: %+v", d.Changed)
+	}
+}
