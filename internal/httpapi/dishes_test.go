@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/nicocesar/tabular_recipes/internal/recipe"
@@ -308,3 +309,21 @@ func TestTranslatePage(t *testing.T) {
 		t.Error("the download follows ?lang=")
 	}
 }
+
+func TestIcons(t *testing.T) {
+	if err := checkIcons(os.DirFS("../../cmd/server")); err != nil {
+		t.Fatal(err)
+	}
+	bad := fstest.MapFS{
+		"templates/fragments/icons.html": {Data: []byte(`<symbol id="i-print" viewBox="0 0 24 24"></symbol>`)},
+		"templates/x.html":                {Data: []byte(`{{icon "print"}} {{icon "nope"}}`)},
+	}
+	if err := checkIcons(bad); err == nil || !strings.Contains(err.Error(), "nope") {
+		t.Fatalf("an unknown icon must fail boot: %v", err)
+	}
+	if _, page := get(t, s0(t), "/"); !strings.Contains(page, `<symbol id="i-type"`) || !strings.Contains(page, `<use href="#i-type"/>`) {
+		t.Error("the home page carries the sprite and uses it")
+	}
+}
+
+func s0(t *testing.T) *Server { return newServer(t) }

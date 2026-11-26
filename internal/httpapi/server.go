@@ -13,6 +13,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"regexp"
 	"html/template"
 	"io/fs"
 	"log"
@@ -61,9 +63,13 @@ func New(cfg Config) (*Server, error) {
 		return nil, err
 	}
 	s.assetv = v
+	if err := checkIcons(cfg.Assets); err != nil {
+		return nil, err
+	}
 	for _, lang := range i18n.Langs() {
 		funcs := template.FuncMap{
 			"assetv": func() string { return s.assetv },
+			"icon":   icon,
 			"t":      func(key string, args ...any) string { return i18n.T(lang, key, args...) },
 			"lang":   func() string { return lang },
 		}
@@ -85,6 +91,50 @@ func New(cfg Config) (*Server, error) {
 	}
 	s.routes()
 	return s, nil
+}
+
+// icon draws one icon of the sprite (templates/fragments/icons.html)
+// beside a word: {{icon "print"}}, or {{icon "type" "stamp"}} for the
+// rubber-stamp treatment.
+func icon(name string, treatment ...string) template.HTML {
+	cls := "ic"
+	for _, t := range treatment {
+		cls += " " + t
+	}
+	return template.HTML(`<svg class="` + template.HTMLEscapeString(cls) + `" aria-hidden="true" focusable="false"><use href="#i-` + template.HTMLEscapeString(name) + `"/></svg>`)
+}
+
+var (
+	iconUse    = regexp.MustCompile(`\{\{icon "([a-z]+)"`)
+	iconSymbol = regexp.MustCompile(`<symbol id="i-([a-z]+)"`)
+)
+
+// checkIcons fails boot when a template names an icon the sprite lacks:
+// a missing symbol draws nothing, silently.
+func checkIcons(assets fs.FS) error {
+	sprite, err := fs.ReadFile(assets, "templates/fragments/icons.html")
+	if err != nil {
+		return err
+	}
+	have := map[string]bool{}
+	for _, m := range iconSymbol.FindAllStringSubmatch(string(sprite), -1) {
+		have[m[1]] = true
+	}
+	return fs.WalkDir(assets, "templates", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := fs.ReadFile(assets, path)
+		if err != nil {
+			return err
+		}
+		for _, m := range iconUse.FindAllStringSubmatch(string(b), -1) {
+			if !have[m[1]] {
+				return fmt.Errorf("%s: icon %q is not in the sprite", path, m[1])
+			}
+		}
+		return nil
+	})
 }
 
 // assetVersion hashes the CSS and JS so links bust caches on deploy.

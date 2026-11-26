@@ -8,32 +8,32 @@
 {{if .Ready}}
 <article class="cardpage">
   {{with .Dish}}{{if gt .Count 1}}
-  <p class="dishline"><a href="/dishes/{{.ID}}">{{.Name}}</a>{{if .NameLang}} <span class="langtag">{{.NameLang}}</span>{{end}} · {{t "dish.variant" .N}} · {{.Label}}{{if .LabelLang}} <span class="langtag">{{.LabelLang}}</span>{{end}} <span class="quiet">(<a href="/dishes/{{.ID}}">{{t "recipe.all_variants" .Count}}</a>)</span></p>
+  <p class="dishline"><a href="/dishes/{{.ID}}">{{.Name}}</a>{{if .NameLang}} <span class="langtag">{{.NameLang}}</span>{{end}} · {{t "dish.variant" .N}} · {{.Label}}{{if .LabelLang}} <span class="langtag">{{.LabelLang}}</span>{{end}} <span class="quiet">(<a href="/dishes/{{.ID}}">{{icon "variants"}}{{t "recipe.all_variants" .Count}}</a>)</span></p>
   {{if .Marked}}
   <div class="marks">
-    <p class="legend"><span class="add">{{t "recipe.legend_add"}}</span> <span class="chg">{{t "recipe.legend_chg"}}</span> · <a href="/recipes/{{$.ID}}">{{t "recipe.marks_hide"}}</a></p>
+    <p class="legend"><span class="add">{{t "recipe.legend_add"}}</span> <span class="chg">{{t "recipe.legend_chg"}}</span> · <a href="/recipes/{{$.ID}}">{{icon "marks"}}{{t "recipe.marks_hide"}}</a></p>
     {{if .Missing}}<p class="gone"><span class="quiet">{{t "recipe.not_in"}}</span> <span class="out">{{range $i, $m := .Missing}}{{if $i}}, {{end}}{{$m}}{{end}}</span></p>{{end}}
   </div>
   {{else if .CanMark}}
-  <p class="marks"><a href="/recipes/{{$.ID}}?marks=1">{{t "recipe.marks_show" .RefN}}</a></p>
+  <p class="marks"><a href="/recipes/{{$.ID}}?marks=1">{{icon "marks"}}{{t "recipe.marks_show" .RefN}}</a></p>
   {{end}}
   {{end}}{{end}}
   {{template "translation" .}}
   <div class="cardwrap">{{.SVG}}</div>
   <div class="tools">
-    <a href="/recipes/{{.ID}}/print{{.Query}}">{{t "recipe.print"}}</a>
-    <a href="/recipes/{{.ID}}/card.svg{{.Query}}" download="{{.Slug}}.svg">{{t "recipe.download"}}</a>
-    {{if .SourceURL}}<a href="{{.SourceURL}}" rel="noopener noreferrer">{{t "recipe.original"}}</a>{{end}}
-    <button type="button" id="wake" class="link" hidden aria-pressed="false" data-on="{{t "recipe.wake_on"}}" data-off="{{t "recipe.wake_off"}}">{{t "recipe.wake_off"}}</button>
+    <a href="/recipes/{{.ID}}/print{{.Query}}">{{icon "print"}}{{t "recipe.print"}}</a>
+    <a href="/recipes/{{.ID}}/card.svg{{.Query}}" download="{{.Slug}}.svg">{{icon "download"}}{{t "recipe.download"}}</a>
+    {{if .SourceURL}}<a href="{{.SourceURL}}" rel="noopener noreferrer">{{icon "original"}}{{t "recipe.original"}}</a>{{end}}
+    <button type="button" id="wake" class="link" hidden aria-pressed="false" data-on="{{t "recipe.wake_on"}}" data-off="{{t "recipe.wake_off"}}">{{icon "candle"}}<span class="lbl">{{t "recipe.wake_off"}}</span></button>
   </div>
   {{if .MayNotFit}}<p class="quiet">{{t "recipe.big"}}</p>{{end}}
   {{if .AlsoAt}}
   <p class="also"><span class="quiet">{{t "recipe.also"}}</span>
-    {{range $i, $a := .AlsoAt}}{{if $i}} · {{end}}{{if $a.URL}}<a href="{{$a.URL}}" rel="noopener noreferrer">{{$a.Domain}}</a>{{else}}{{t "card.pasted"}}{{end}}{{if $.Owner}} <form method="post" action="/recipes/{{$a.Record}}/unfold" class="inline"><button class="link" title="Make this copy a variant of its own">unfold</button></form>{{end}}{{end}}
+    {{range $i, $a := .AlsoAt}}{{if $i}} · {{end}}{{if $a.URL}}<a href="{{$a.URL}}" rel="noopener noreferrer">{{$a.Domain}}</a>{{else}}{{t "card.pasted"}}{{end}}{{if $.Owner}} <form method="post" action="/recipes/{{$a.Record}}/unfold" class="inline"><button class="link" title="Make this copy a variant of its own">{{icon "unfold"}}unfold</button></form>{{end}}{{end}}
   </p>
   {{end}}
   <details class="astext">
-    <summary>{{t "recipe.as_text"}}</summary>
+    <summary>{{icon "book"}}{{t "recipe.as_text"}}</summary>
     <h2>{{.Title}}</h2>
     {{if .Credit}}<p class="quiet"><em>{{.Credit}}</em></p>{{end}}
     {{if .Meta}}<p>{{.Meta}}</p>{{end}}
@@ -54,33 +54,33 @@
 {{end}}
 {{define "translation"}}
 {{if .Translating}}<section class="pending translating">{{template "status" .Translating}}</section>
-{{else if .Translated}}<p class="translation quiet">{{t "recipe.translated" .Translated}} <a href="/recipes/{{.ID}}?orig=1">{{t "recipe.show_original"}}</a></p>
-{{else if .HasTranslation}}<p class="translation quiet"><a href="/recipes/{{.ID}}">{{t "recipe.show_translation"}}</a></p>
+{{else if .Translated}}<p class="translation quiet">{{t "recipe.translated" .Translated}} <a href="/recipes/{{.ID}}?orig=1">{{icon "translate"}}{{t "recipe.show_original"}}</a></p>
+{{else if .HasTranslation}}<p class="translation quiet"><a href="/recipes/{{.ID}}">{{icon "translate"}}{{t "recipe.show_translation"}}</a></p>
 {{else if .CanTranslate}}<form method="post" action="/recipes/{{.ID}}/translate" class="translation">
   <input type="hidden" name="to" value="{{.TranslateTo}}">
   <span class="quiet">{{t "recipe.in_lang" .InLang}}</span>
-  <button class="link" data-busy="{{t "status.translating"}}">{{t "recipe.translate_btn"}}</button>
+  <button class="link" data-busy="{{t "status.translating"}}">{{icon "translate"}}<span class="lbl">{{t "recipe.translate_btn"}}</span></button>
 </form>{{end}}
 {{if .TranslateErr}}<p class="error">{{.TranslateErr}}</p>{{end}}
 {{end}}
 {{define "ownertools"}}
 <div class="ownertools">
-  <a href="/admin/recipes/{{.ID}}">Trace</a>
-  {{if .Failed}}<form method="post" action="/recipes/{{.ID}}/retry" class="inline"><button>Retry (a paid run)</button></form>{{end}}
-  <form method="post" action="/recipes/{{.ID}}/delete" class="inline" onsubmit="return confirm('Throw this card away?')"><button class="danger">Delete</button></form>
+  <a href="/admin/recipes/{{.ID}}">{{icon "trace"}}Trace</a>
+  {{if .Failed}}<form method="post" action="/recipes/{{.ID}}/retry" class="inline"><button>{{icon "retry"}}Retry (a paid run)</button></form>{{end}}
+  <form method="post" action="/recipes/{{.ID}}/delete" class="inline" onsubmit="return confirm('Throw this card away?')"><button class="danger">{{icon "delete"}}Delete</button></form>
 </div>
 {{if .Ready}}
 <div class="ownertools column">
   <form method="post" action="/recipes/{{.ID}}/label" class="row">
     <label for="label">Label</label>
     <input id="label" type="text" name="label" maxlength="{{.LabelMax}}" value="{{.Label}}" required>
-    <button>Save</button>
+    <button>{{icon "pencil"}}Save</button>
   </form>
   <form method="post" action="/recipes/{{.ID}}/move" class="row">
     <label for="move-to">Move to</label>
     <select id="move-to" name="dish"><option value="">a new dish named…</option>{{range .Others}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select>
     <input type="text" name="new_name" maxlength="60" placeholder="new dish name" aria-label="New dish name">
-    <button>Move</button>
+    <button>{{icon "move"}}Move</button>
   </form>
 </div>
 {{end}}

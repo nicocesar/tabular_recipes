@@ -13,14 +13,14 @@
     <label for="url">{{t "home.url_label"}}</label>
     <input id="url" name="url" type="url" inputmode="url" placeholder="https://…" value="{{.URL}}" autocomplete="off">
     <details {{if .Pasted}}open{{end}}>
-      <summary>{{t "home.paste_summary"}}</summary>
+      <summary>{{icon "paste"}}{{t "home.paste_summary"}}</summary>
       <label for="pasted">{{t "home.paste_label"}}</label>
       <textarea id="pasted" name="pasted" rows="8" maxlength="30000">{{.Pasted}}</textarea>
       <label for="source">{{t "home.source_label"}} <span class="quiet">{{t "home.optional"}}</span></label>
       <input id="source" name="source" type="text" maxlength="300" value="{{.Source}}">
     </details>
     <div class="hp" aria-hidden="true"><label>{{t "home.honeypot"}} <input name="website" tabindex="-1" autocomplete="off"></label></div>
-    <button type="submit" data-busy="{{t "home.busy"}}">{{t "home.submit"}}</button>
+    <button type="submit" data-busy="{{t "home.busy"}}">{{icon "type" "stamp"}}<span class="lbl">{{t "home.submit"}}</span></button>
     <p class="quiet caps">{{t "home.left" .Left .Cap}}</p>
   </form>
 </section>

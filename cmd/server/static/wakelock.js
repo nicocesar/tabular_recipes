@@ -8,7 +8,7 @@
 
   function set(on) {
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.textContent = on ? btn.dataset.on : btn.dataset.off;
+    (btn.querySelector(".lbl") || btn).textContent = on ? btn.dataset.on : btn.dataset.off; // keep the icon
   }
   async function acquire() {
     try {

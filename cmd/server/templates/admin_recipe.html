@@ -4,7 +4,7 @@
 {{define "title"}}trace — recipes{{end}}
 {{define "content"}}
 <section class="bench">
-  <p><a href="/admin">← workbench</a> · <a href="/recipes/{{.ID}}">the card</a></p>
+  <p><a href="/admin">{{icon "workbench"}}workbench</a> · <a href="/recipes/{{.ID}}">the card</a></p>
   <h1>{{.Title}}</h1>
   <p class="quiet">{{.ID}} · <span class="badge badge-{{.Status}}">{{.Status}}</span>{{if .Source}} · <a href="{{.Source}}" rel="noopener noreferrer">{{.Source}}</a>{{end}}{{if .Session}} · session {{.Session}}{{end}}</p>
   {{if .Fail}}<p class="error">{{.Fail}}</p>{{end}}

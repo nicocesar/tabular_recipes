@@ -113,7 +113,7 @@ button:disabled { opacity: .6; cursor: progress; }
 .cardwrap svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 14px var(--shadow)); }
 .tools { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 14px 2px; font-size: 15px; }
 .tools button[aria-pressed=true] { color: var(--red); text-decoration: none; }
-.tools button[aria-pressed=true]::before { content: "● "; }
+.tools button[aria-pressed=true] svg.ic { fill: color-mix(in srgb, currentColor 25%, transparent); }
 .astext { margin-top: 18px; background-image: none; }
 .astext h2 { margin-top: 10px; }
 .ownertools { display: flex; gap: 14px; align-items: center; margin-top: 18px; font-size: 15px; }
@@ -192,3 +192,11 @@ table th { font-weight: normal; color: var(--pencil); }
 /* Translations (ADRs 0014, 0015). */
 .translation { margin: 4px 2px 10px; font-size: 15px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 .pending.translating { margin: 0 0 14px; max-width: none; }
+
+/* Icons (templates/fragments/icons.html): Typewriter ink, beside a word,
+   the size of the text, in the text's colour. The rubber stamp is kept
+   for the filing button. */
+svg.ic { width: 1.05em; height: 1.05em; display: inline-block; vertical-align: -.17em; margin-right: .38em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+svg.ic.stamp { filter: url(#rough); width: 1.2em; height: 1.2em; vertical-align: -.24em; stroke-width: 1.8; }
+.langs svg.ic { align-self: center; margin-right: 0; }

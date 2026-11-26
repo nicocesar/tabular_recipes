@@ -15,7 +15,7 @@
   </div>
   {{if or .Undished .BackfillMsg}}
   <div class="backfill">
-    {{if .Undished}}<form method="post" action="/admin/backfill" class="inline"><button>Backfill dishes ({{.Undished}} cards, one paid run each)</button></form>{{end}}
+    {{if .Undished}}<form method="post" action="/admin/backfill" class="inline"><button>{{icon "drawer"}}Backfill dishes ({{.Undished}} cards, one paid run each)</button></form>{{end}}
     {{if .BackfillMsg}}<p class="quiet">Backfill: {{.BackfillMsg}}</p>{{end}}
   </div>
   {{end}}

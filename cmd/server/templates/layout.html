@@ -13,12 +13,13 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='3' width='14' height='10' rx='1' fill='%23F2E8D0' stroke='%233A2E26'/%3E%3Cline x1='1' y1='6' x2='15' y2='6' stroke='%23B0473A'/%3E%3C/svg%3E">
 </head>
 <body>
+{{template "icons"}}
 <header class="lid">
   <a class="wordmark" href="/">recipes</a>
   <nav>
-    {{if .Nav.Owner}}<a href="/admin">{{t "nav.workbench"}}</a>
-    <form method="post" action="/logout" class="inline"><button class="link">{{t "nav.lock"}}</button></form>
-    {{else}}<a href="/login" class="quiet">{{t "nav.owner"}}</a>{{end}}
+    {{if .Nav.Owner}}<a href="/admin">{{icon "workbench"}}{{t "nav.workbench"}}</a>
+    <form method="post" action="/logout" class="inline"><button class="link">{{icon "lock"}}{{t "nav.lock"}}</button></form>
+    {{else}}<a href="/login" class="quiet">{{icon "key"}}{{t "nav.owner"}}</a>{{end}}
   </nav>
 </header>
 <main>
@@ -28,6 +29,7 @@
   <p>{{t "imprint"}}</p>
   <form method="post" action="/lang" class="langs" aria-label="{{t "lang.switch"}}">
     <input type="hidden" name="back" value="{{.Nav.Here}}">
+    {{icon "globe"}}
     {{range .Nav.Langs}}{{if .Current}}<span aria-current="true">{{.Name}}</span>{{else}}<button class="link" name="to" value="{{.Code}}" lang="{{.Code}}">{{.Name}}</button>{{end}}{{end}}
   </form>
 </footer>

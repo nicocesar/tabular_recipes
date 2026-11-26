@@ -9,8 +9,9 @@
       // submit time would drop out of the form data.
       setTimeout(function () {
         btn.disabled = true;
-        btn.dataset.idle = btn.textContent;
-        btn.textContent = btn.dataset.busy;
+        var lbl = btn.querySelector(".lbl") || btn; // keep the icon
+        btn.dataset.idle = lbl.textContent;
+        lbl.textContent = btn.dataset.busy;
       }, 0);
     });
   });
@@ -18,7 +19,7 @@
   window.addEventListener("pageshow", function () {
     Array.prototype.forEach.call(buttons, function (btn) {
       btn.disabled = false;
-      if (btn.dataset.idle) btn.textContent = btn.dataset.idle;
+      if (btn.dataset.idle) (btn.querySelector(".lbl") || btn).textContent = btn.dataset.idle;
     });
   });
 })();
